@@ -1,0 +1,959 @@
+\documentclass[10pt]{article}
+\usepackage{dcn}
+\begin{document}
+
+\packtitle{03}{Physical Layer: Media, Signals, Multiplexing \& Switching}
+  {Course outline weeks 1--2: transmission media, switching methods, ISDN, terminal handling}{VERY HIGH}
+
+Physical-layer questions appear in \hl{every} paper, usually two or three parts per paper (2--9 marks each).
+Switching has come up in 4 of the 5 papers, and media in 4 of 5. These are cheap, predictable marks: learn the tables and the diagrams.
+
+\subsection*{How often this topic is examined}
+\begin{tabularx}{\linewidth}{@{}X>{\raggedright\arraybackslash}p{4.6cm}l@{}}
+\toprule
+\textbf{Question asked} & \textbf{Paper(s)} & \textbf{Marks}\\
+\midrule
+Circuit vs packet (vs message) switching; examples; latency \& jitter & 2023 Q5b.i--iii, ISA2024 Q2d.i--ii, SE2024 Q2c.i--ii, 2025 Q3a & 2--9\\
+Types of transmission media (list / explain / enterprise, with diagram) & 2023 Q1e, 2025 Q2b.i, SE2024 Q4c & 4\\
+Bounded vs unbounded media & SE2024 Q1b.i & 2\\
+Fibre optic: how it transmits (diagram) + why it beats copper & 2023 Q3a, Q3b & 5--6\\
+Multiplexing: concept \& importance; MUX components; FDM vs TDM & 2025 Q2b.ii, SE2024 Q1b, Q2a & 4--5\\
+Transmission impairments (attenuation, distortion, noise) & SE2024 Q1d & 3\\
+Analogue vs digital signals; synchronous transmission & SE2024 Q3c.ii, Q1a.iii & 1--2\\
+Modulation vs encoding, with examples & SE2024 Q5b & 6\\
+ADSL: why asymmetric; voice + data on one pair & ISA2024 Q5b.i--ii & 2--5\\
+GSM vs CDMA & SE2024 Q1b.iii & 3\\
+Nyquist / Shannon, ISDN, terminal handling, WDM & not asked yet (in outline) & --\\
+\bottomrule
+\end{tabularx}
+
+\begin{examtip}
+The ISA papers (2024, 2025) asked switching \emph{every} year and ADSL once. Have the circuit/message/packet table and the three-network diagram
+ready to draw in under five minutes. ``Using a diagram'' in the question means the diagram itself carries about half the marks.
+\end{examtip}
+
+%=====================================================================
+\section{Transmission media}
+
+The \textbf{transmission medium} is the physical path between transmitter and receiver (the ``layer 0'' under the physical layer).
+
+\begin{center}
+\begin{minipage}{\linewidth}\centering
+\begin{tikzpicture}[xscale=0.93,
+   every node/.style={font=\scriptsize,align=center},
+   box/.style={draw=ink,rounded corners=2pt,minimum height=6mm,inner sep=2pt}]
+  \node[box,fill=ink,text=white,font=\small\bfseries] (tm) at (6.9,0) {Transmission media};
+  \node[box,fill=brand,text=white,font=\small\bfseries] (g) at (3,-1.2) {Guided (bounded / wired)};
+  \node[box,fill=peach,font=\small\bfseries] (u) at (10.8,-1.2) {Unguided (unbounded / wireless)};
+  \draw[link] (tm) -- (g); \draw[link] (tm) -- (u);
+  \node[box,fill=cream,text width=19mm] (tp) at (0.6,-2.6) {\textbf{Twisted pair}\\UTP / STP\\electrical};
+  \node[box,fill=cream,text width=19mm] (cx) at (3,-2.6) {\textbf{Coaxial}\\cable TV, CCTV\\electrical};
+  \node[box,fill=cream,text width=19mm] (fo) at (5.4,-2.6) {\textbf{Fibre optic}\\backbones\\light};
+  \node[box,fill=softpeach,text width=19mm] (rw) at (8.4,-2.6) {\textbf{Radio}\\3 kHz--1 GHz\\omnidirectional};
+  \node[box,fill=softpeach,text width=19mm] (mw) at (10.8,-2.6) {\textbf{Microwave}\\1--300 GHz\\line of sight};
+  \node[box,fill=softpeach,text width=19mm] (ir) at (13.2,-2.6) {\textbf{Infrared}\\300 GHz--400 THz\\short range};
+  \foreach \c in {tp,cx,fo} \draw[link] (g.south) -- (\c.north);
+  \foreach \c in {rw,mw,ir} \draw[link] (u.south) -- (\c.north);
+\end{tikzpicture}\\*
+{\scriptsize\color{midgrey}Figure: classification of transmission media (lecturer's terms: guided = bounded, unguided = unbounded).}\end{minipage}
+\end{center}
+
+\subsection{Copper media}
+\begin{center}
+\begin{minipage}{\linewidth}\centering
+\begin{tikzpicture}
+  % twisted pair helix
+  \draw[brand,very thick] plot[domain=0:3.6,samples=120] (\x,{0.28*sin(\x*200)});
+  \draw[ink,very thick] plot[domain=0:3.6,samples=120] (\x,{-0.28*sin(\x*200)});
+  \node[lbl] at (1.8,-0.75) {one twisted pair: noise induced on both wires\\is equal and opposite, so it cancels};
+  \node[lbl,font=\scriptsize\bfseries] at (1.8,0.75) {Twisted pair (side view)};
+  % UTP cross-section
+  \begin{scope}[shift={(5.4,0)}]
+    \draw[fill=midgrey!40] (0,0) circle (0.85);
+    \foreach \a/\c in {45/brand,135/easyc,225/peach,315/medc}{
+      \fill[\c] (\a:0.42) ++(-0.13,0) circle (0.12);
+      \fill[white] (\a:0.42) ++(0.13,0) circle (0.12);
+      \draw (\a:0.42) ++(-0.13,0) circle (0.12);
+      \draw (\a:0.42) ++(0.13,0) circle (0.12);}
+    \node[lbl,font=\scriptsize\bfseries] at (0,1.1) {UTP (Cat5e/6)};
+    \node[lbl] at (0,-1.2) {4 pairs = 8 wires\\in a PVC jacket; RJ-45};
+  \end{scope}
+  % coax cross-section
+  \begin{scope}[shift={(8.4,0)}]
+    \draw[fill=ink!80] (0,0) circle (0.8);
+    \draw[fill=midgrey!70,densely dotted,thick] (0,0) circle (0.62);
+    \draw[fill=white] (0,0) circle (0.5);
+    \draw[fill=brand] (0,0) circle (0.14);
+    \node[lbl,font=\scriptsize\bfseries] at (0,1.1) {Coaxial cable};
+    \draw[midgrey] (0.1,0.05) -- (1.25,0.75) node[right,lbl,text=ink]{inner copper conductor};
+    \draw[midgrey] (0.35,0.1) -- (1.25,0.25) node[right,lbl,text=ink]{insulator (dielectric)};
+    \draw[midgrey] (0.56,-0.15) -- (1.25,-0.25) node[right,lbl,text=ink]{braided metal shield};
+    \draw[midgrey] (0.72,-0.4) -- (1.25,-0.75) node[right,lbl,text=ink]{outer plastic jacket};
+  \end{scope}
+\end{tikzpicture}\\*
+{\scriptsize\color{midgrey}Figure: twisted pair (twisting cancels interference) and coax (the shield blocks outside interference).}\end{minipage}
+\end{center}
+
+\begin{itemize}
+\item \textbf{Twisted pair}: pairs of insulated copper wires twisted together. The two wires carry $+$ and $-$ signals (balanced line); noise hits both equally and cancels at the receiver. \textbf{UTP} (unshielded, cheap, Ethernet LANs, max $\approx$100 m) and \textbf{STP} (foil shield, better against EMI and crosstalk).
+\item \textbf{Coaxial}: two conductors sharing one axis: inner conductor, insulator, braided outer conductor (shield), jacket. Better shielding and higher bandwidth than UTP. Cable TV, CCTV, old 10Base2/10Base5 Ethernet.
+\item \textbf{Fibre optic}: glass core carries \textbf{light}; see Section~\ref{sec:fibre}.
+\item \textbf{Radio} (omnidirectional, penetrates walls: AM/FM, Wi-Fi), \textbf{microwave} (unidirectional, line of sight, dish antennas, repeaters/towers, satellite), \textbf{infrared} (cannot pass walls, short range: remotes, IrDA).
+\end{itemize}
+
+\begin{center}\small
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}lXXX@{}}
+\toprule
+ & Twisted pair & Coaxial & Fibre optic\\\midrule
+Signal & Electrical & Electrical & Light\\
+Bandwidth & Low--medium (100 MHz--1 GHz) & Medium & Very high (THz)\\
+Distance & $\approx$100 m & $\approx$500 m & 2--100+ km\\
+Noise / EMI & Susceptible (STP better) & Less (shielded) & Immune\\
+Cost / install & Cheapest, easy & Moderate & Expensive, needs skilled splicing\\
+Use & LAN to the desk, phone line & Cable TV, CCTV & Backbones, WAN, undersea\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{pastq}{2023 Q1e \textnormal{/} 2025 Q2b.i}{4}List any four (4) types of transmission media that you are familiar with. /
+\emph{The Physical Layer is responsible for the transmission of bits over a physical medium.} Explain two types of transmission media.\end{pastq}
+\begin{ans}
+\textbf{List (2023, 1 mark each)}: twisted pair (UTP/STP), coaxial cable, fibre optic cable, radio waves (Wi-Fi), microwave/satellite, infrared.
+
+\textbf{Explain two (2025, 2 marks each)}:
+\begin{enumerate}
+\item \textbf{Guided -- twisted pair}: insulated copper wires twisted in pairs so induced noise cancels; carries electrical signals; cheap and easy to install; used for Ethernet LANs (RJ-45, Cat6), limited to about 100 m and affected by EMI.
+\item \textbf{Unguided -- radio / microwave}: data carried as electromagnetic waves through air with no cable; radio is omnidirectional (Wi-Fi, mobile), microwave needs line of sight between dishes; gives mobility and easy installation over difficult terrain but is less secure and affected by weather and interference.
+\end{enumerate}
+\end{ans}
+\sidenote{``Explain \textbf{two types}'' is safest as one \emph{guided} and one \emph{unguided} example: it shows you know both families.}
+
+\begin{pastq}{SE2024 Q1b.i}{2}Outline the difference between Bounded and unbounded transmission media.\end{pastq}
+\begin{ans}
+\begin{tabularx}{\linewidth}{@{}XX@{}}
+\toprule
+\textbf{Bounded (guided)} & \textbf{Unbounded (unguided)}\\\midrule
+Signal is confined to a physical conductor (copper or glass) along a fixed path & Signal travels through air/vacuum as electromagnetic waves, no conductor\\
+E.g.\ twisted pair, coax, fibre & E.g.\ radio, microwave, infrared, satellite\\
+More secure, less interference, capacity added by adding cables & Mobility, cheap to install over distance; less secure, weather/interference\\
+\bottomrule
+\end{tabularx}
+\end{ans}
+
+\begin{pastq}{SE2024 Q4c}{4}Using a diagram, explain the features of the types of networking media used in enterprise networks.\end{pastq}
+\begin{center}
+\begin{minipage}{\linewidth}\centering
+\begin{tikzpicture}[x=1cm,y=1cm]
+  % building
+  \foreach \f/\y in {1/0,2/1.4,3/2.8}{
+    \draw[fill=cream!60,draw=midgrey] (0,\y) rectangle (8.2,\y+1.2);
+    \node[lbl,anchor=west,text=midgrey] at (0.05,\y+1.0) {Floor \f};
+    \node[switchn,minimum width=13mm] (sw\f) at (1.4,\y+0.45) {Switch};
+    \draw[ink] (sw\f.east) -- (2.6+3*1.35,\y+0.45);
+    \foreach \p in {1,2,3}{\node[hostn,minimum height=4.5mm] (pc\f\p) at (2.6+\p*1.35,\y+0.87) {PC};
+      \draw[ink] (pc\f\p.south) -- (2.6+\p*1.35,\y+0.45);}
+  }
+  \node[lbl] at (5.3,0.2) {UTP Cat6 to each desk};
+  \node[switchn,fill=ink,minimum width=13mm] (core) at (-1.5,-0.6) {Core sw.};
+  \draw[brand,ultra thick] (core.north) -- (-1.5,3.25);
+  \foreach \f in {1,2,3} \draw[brand,ultra thick] (sw\f.west -| -1.5,0) -- (sw\f.west);
+  \node[lbl,text=brand,font=\scriptsize\bfseries,rotate=90] at (-1.8,1.9) {fibre backbone (riser)};
+  \node[routern] (isp) at (1.6,-0.6) {ISP};
+  \draw[brand,ultra thick,dashed] (core) -- (isp) node[midway,below,lbl,text=brand]{fibre to ISP};
+  % AP
+  \node[hubn,fill=easyc] (ap) at (8.2+1.3,4.35) {AP};
+  \draw[ink] (sw3.north) |- (ap.west);
+  \foreach \r in {0.35,0.6,0.85} \draw[easyc,thick] ([xshift=6mm]ap.east) ++(-60:\r) arc (-60:60:\r);
+  \node[hostn] at (9.5,1.6) {laptop};
+  \node[lbl] at (9.6,2.25) {Wi-Fi\\802.11};
+\end{tikzpicture}\\*
+{\scriptsize\color{midgrey}Figure: structured cabling. Fibre between floors and to the ISP, UTP to desks, Wi-Fi for mobile users.}\end{minipage}
+\end{center}
+\begin{ans}
+\begin{enumerate}
+\item \textbf{UTP Cat5e/Cat6 (horizontal cabling)}: from the floor switch to each desk; cheap, easy to terminate (RJ-45), up to 1--10 Gbps over $\le$100 m.
+\item \textbf{Fibre optic (backbone / vertical riser)}: links floor switches to the core switch and the building to the ISP; very high bandwidth, long distance, immune to EMI, secure.
+\item \textbf{Wireless (Wi-Fi access points)}: unguided radio for laptops and phones; mobility and no cabling, but shared bandwidth and needs WPA2/3 security.
+\item (Coax, if mentioned: CCTV and some ISP cable-modem links.)
+\end{enumerate}
+\end{ans}
+
+%=====================================================================
+\section{Fibre optic cable}\label{sec:fibre}
+
+\begin{center}
+\begin{minipage}{\linewidth}\centering
+\begin{tikzpicture}[xscale=0.92]
+  % layers
+  \draw[fill=midgrey!45] (1.5,-1.0) rectangle (11.5,1.0);
+  \draw[fill=cream] (1.5,-0.72) rectangle (11.5,0.72);
+  \draw[fill=peach!55] (1.5,-0.35) rectangle (11.5,0.35);
+  % ray
+  \draw[brand,very thick,->] (1.5,0) -- (2.2,0.35) -- (3.6,-0.35) -- (5.0,0.35) -- (6.4,-0.35) -- (7.8,0.35) -- (9.2,-0.35) -- (10.6,0.35) -- (11.5,-0.1);
+  % angle
+  \draw[ink,dashed] (5.0,0.35) -- (5.0,-0.3);
+  \draw[ink] (5.0,0.35) ++(206.6:0.32) arc (206.6:270:0.32);
+  \node[font=\tiny] at (4.82,-0.1) {$\theta$};
+  % source / detector
+  \node[node,fill=brand,text=white,font=\scriptsize,minimum width=12mm] at (0.65,0) {LED /\\laser};
+  \node[node,fill=ink,text=white,font=\scriptsize,minimum width=12mm] at (12.35,0) {photo-\\detector};
+  \node[font=\scriptsize\bfseries,text=brand] at (0.65,0.8) {1\,0\,1\,1};
+  \node[font=\scriptsize\bfseries,text=brand] at (12.35,0.8) {1\,0\,1\,1};
+  \node[lbl] at (0.65,-0.8) {electrical\\$\to$ light};
+  \node[lbl] at (12.35,-0.8) {light $\to$\\electrical};
+  % labels
+  \draw[midgrey] (9.9,-0.88) -- (9.9,-1.35) node[below,lbl,text=ink]{jacket + buffer (protection)};
+  \draw[midgrey] (3.0,0.55) -- (2.8,1.35) node[above,lbl,text=ink]{cladding: \textbf{lower} refractive index};
+  \draw[midgrey] (4.6,-0.2) -- (4.6,-1.35) node[below,lbl,text=ink]{core (glass): \textbf{higher} refractive index};
+  \draw[midgrey] (5.0,0.35) -- (7.6,1.35) node[above,lbl,text=ink]{$\theta >$ critical angle $\Rightarrow$ total internal reflection};
+\end{tikzpicture}\\*
+{\scriptsize\color{midgrey}Figure: light pulses bounce along the core by total internal reflection (light on = 1, off = 0).}\end{minipage}
+\end{center}
+
+\begin{center}
+\begin{minipage}{\linewidth}\centering
+\begin{tikzpicture}
+  % cross-section
+  \draw[fill=ink!75] (0,0) circle (1.0);
+  \draw[fill=midgrey!45] (0,0) circle (0.82);
+  \draw[fill=cream] (0,0) circle (0.62);
+  \draw[fill=peach] (0,0) circle (0.22);
+  \node[lbl,font=\scriptsize\bfseries] at (0,1.3) {Cross-section};
+  \draw[midgrey] (0.1,0) -- (1.3,0.6) node[right,lbl,text=ink]{core: 9 $\mu$m SM, 50/62.5 $\mu$m MM};
+  \draw[midgrey] (0.45,-0.1) -- (1.3,0.05) node[right,lbl,text=ink]{cladding 125 $\mu$m};
+  \draw[midgrey] (0.72,-0.3) -- (1.3,-0.45) node[right,lbl,text=ink]{buffer coating};
+  \draw[midgrey] (0.9,-0.6) -- (1.3,-0.95) node[right,lbl,text=ink]{jacket};
+  % multimode
+  \begin{scope}[shift={(6.6,0.45)}]
+    \draw[fill=cream] (0,-0.5) rectangle (6.4,0.5);
+    \draw[fill=peach!55] (0,-0.32) rectangle (6.4,0.32);
+    \draw[brand,thick] (0,0) -- (0.8,0.32) -- (2.4,-0.32) -- (4.0,0.32) -- (5.6,-0.32) -- (6.4,0.1);
+    \draw[ink,thick] (0,0) -- (1.6,0.32) -- (4.8,-0.32) -- (6.4,0.05);
+    \draw[easyc!80!ink,thick] (0,0) -- (6.4,0);
+    \node[lbl,anchor=south west] at (0,0.5) {\textbf{Multimode}: thick core, many paths, LED; up to $\approx$2 km};
+  \end{scope}
+  \begin{scope}[shift={(6.6,-0.85)}]
+    \draw[fill=cream] (0,-0.3) rectangle (6.4,0.3);
+    \draw[fill=peach!55] (0,-0.07) rectangle (6.4,0.07);
+    \draw[brand,thick] (0,0) -- (6.6,0);
+    \node[lbl,anchor=north west] at (0,-0.3) {\textbf{Single-mode}: thin core, one path, laser; 10--100+ km};
+  \end{scope}
+\end{tikzpicture}\\*
+{\scriptsize\color{midgrey}Figure: fibre cross-section, and multimode vs single-mode light paths.}\end{minipage}
+\end{center}
+
+\begin{pastq}{2023 Q3a}{5}Using a diagram, explain how data is transmitted along a fiber optic cable.\end{pastq}
+\begin{ans}
+(Draw the light-path figure above, then:)
+\begin{enumerate}
+\item At the transmitter, the electrical bits are converted to \textbf{light pulses} by an LED or laser diode (light on = 1, off = 0).
+\item The light enters the glass \textbf{core}, which has a \textbf{higher refractive index} than the surrounding \textbf{cladding}.
+\item Rays hit the core/cladding boundary at more than the \textbf{critical angle}, so they undergo \textbf{total internal reflection} and bounce along the core with very little loss, even round bends.
+\item The buffer and jacket protect the fibre from damage and moisture.
+\item At the far end a \textbf{photodetector} (photodiode) converts the light pulses back to electrical signals.
+\end{enumerate}
+\end{ans}
+\sidenote{Key phrase for the mark: \textbf{total internal reflection}, because core index $>$ cladding index and angle $>$ critical angle.}
+
+\begin{pastq}{2023 Q3b}{6}Identify three (3) physical characteristics of fiber optic cables that make them more suitable for high-speed digital data transmission over copper cables.\end{pastq}
+\begin{ans}
+\begin{enumerate}
+\item \textbf{Very high bandwidth}: light has a frequency of hundreds of THz, so fibre carries Gbps--Tbps, and WDM puts many wavelengths on one fibre.
+\item \textbf{Low attenuation}: signals travel tens of km without repeaters (UTP needs one every 100 m).
+\item \textbf{Immune to EMI and crosstalk}: it carries light, not electricity, so motors, lightning and nearby cables add no noise, giving very low error rates.
+\end{enumerate}
+Also: thin and light (many fibres per cable), hard to tap without detection (security), no sparks or ground loops (electrical isolation).
+\end{ans}
+
+\begin{trap}
+The core has the \textbf{higher} refractive index, the cladding the \textbf{lower}. Reversing them is the most common error. Also: it is \emph{total internal reflection}, not refraction.
+\end{trap}
+
+%=====================================================================
+\section{Signals, impairments and data rate}
+
+\subsection{Analogue vs digital; synchronous transmission}
+
+\begin{center}
+\begin{minipage}{\linewidth}\centering
+\begin{tikzpicture}
+  \draw[->,midgrey] (0,0) -- (5.6,0) node[right,lbl]{time};
+  \draw[->,midgrey] (0,-0.8) -- (0,0.9);
+  \draw[brand,thick] plot[domain=0:5.4,samples=100] (\x,{0.45*sin(\x*120)+0.2*sin(\x*310)});
+  \node[lbl,font=\scriptsize\bfseries] at (2.7,1.15) {Analogue: continuous, infinitely many values};
+  \begin{scope}[shift={(7.6,0)}]
+    \draw[->,midgrey] (0,0) -- (5.6,0) node[right,lbl]{time};
+    \draw[->,midgrey] (0,-0.8) -- (0,0.9);
+    \draw[ink,very thick] (0,0.5) -- (0.9,0.5) -- (0.9,-0.5) -- (1.8,-0.5) -- (1.8,0.5) -- (3.6,0.5) -- (3.6,-0.5) -- (5.4,-0.5);
+    \foreach \b [count=\i from 0] in {1,0,1,1,0,0} \node[font=\scriptsize] at (\i*0.9+0.45,0.7) {\b};
+    \node[lbl,font=\scriptsize\bfseries] at (2.7,1.15) {Digital: discrete levels (0 / 1)};
+  \end{scope}
+\end{tikzpicture}\\*
+{\scriptsize\color{midgrey}Figure: analogue vs digital signal.}\end{minipage}
+\end{center}
+
+\begin{pastq}{SE2024 Q3c.ii}{2}Distinguish between the following terms: Analogue verses digital signals.\end{pastq}
+\begin{ans}
+\begin{tabularx}{\linewidth}{@{}XX@{}}
+\toprule
+\textbf{Analogue signal} & \textbf{Digital signal}\\\midrule
+Continuous wave; infinitely many values in a range & Discrete; a limited number of levels (e.g.\ 0 and 1)\\
+Described by amplitude, frequency, phase & Described by bit rate and bit interval\\
+Noise is added and cannot be removed (amplifiers boost it too) & Can be regenerated exactly by repeaters; more noise-immune\\
+E.g.\ human voice, analogue telephone, AM/FM radio & E.g.\ computer data, Ethernet\\
+\bottomrule
+\end{tabularx}
+\end{ans}
+
+\begin{center}
+\begin{minipage}{\linewidth}\centering
+\begin{tikzpicture}[x=3.9mm,y=6mm]
+  \node[lbl,anchor=east,font=\scriptsize\bfseries] at (-0.3,0.5) {Asynchronous};
+  \foreach \s in {0,13.5}{
+    \draw[fill=easyc] (\s,0) rectangle ++(1,1) node[midway,font=\tiny]{0};
+    \draw[fill=cream] (\s+1,0) rectangle ++(8,1) node[midway,font=\scriptsize]{1 byte};
+    \draw[fill=peach] (\s+9,0) rectangle ++(1,1) node[midway,font=\tiny]{1};}
+  \draw[midgrey,dashed] (10,0.5) -- (13.5,0.5) node[midway,above,lbl]{idle gap};
+  \node[lbl] at (0.5,-0.4) {start}; \node[lbl] at (9.5,-0.4) {stop};
+  \node[lbl,anchor=west] at (24,0.5) {per-byte framing,\\gaps allowed (keyboard)};
+  \begin{scope}[yshift=-17mm]
+  \node[lbl,anchor=east,font=\scriptsize\bfseries] at (-0.3,0.5) {Synchronous};
+  \draw[fill=ink!70] (0,0) rectangle ++(2,1) node[midway,font=\tiny,text=white]{sync/flag};
+  \foreach \k in {0,...,4}\draw[fill=cream] (2+\k*4,0) rectangle ++(4,1) node[midway,font=\scriptsize]{byte};
+  \draw[fill=ink!70] (22,0) rectangle ++(2,1) node[midway,font=\tiny,text=white]{flag};
+  \node[lbl,anchor=west] at (24,0.5) {continuous block,\\shared clock};
+  \end{scope}
+\end{tikzpicture}\\*
+{\scriptsize\color{midgrey}Figure: asynchronous (start/stop bits per byte) vs synchronous (one continuous clocked block).}\end{minipage}
+\end{center}
+
+\begin{pastq}{SE2024 Q1a.iii}{1}Explain the following term: Synchronous transmission.\end{pastq}
+\begin{ans}
+Data is sent as a \textbf{continuous stream of bits in blocks/frames}, with sender and receiver kept in step by a \textbf{common clock} (timing signal); there are no start/stop bits or gaps per byte, so it is faster and more efficient than asynchronous. E.g.\ Ethernet, HDLC frames.
+\end{ans}
+
+\subsection{Transmission impairments}
+\begin{center}
+\begin{minipage}{\linewidth}\centering
+\begin{tikzpicture}
+  \pgfmathsetseed{7}
+  % attenuation
+  \draw[->,midgrey] (0,0) -- (4.3,0);
+  \draw[brand,thick] plot[domain=0:4.1,samples=120] (\x,{0.6*exp(-0.45*\x)*sin(\x*360*1.2)});
+  \node[lbl,font=\scriptsize\bfseries] at (2.1,0.95) {Attenuation};
+  \node[lbl] at (2.1,-0.95) {strength falls with distance};
+  % distortion
+  \begin{scope}[shift={(4.9,0)}]
+    \draw[->,midgrey] (0,0) -- (4.3,0);
+    \draw[ink,thick] (0,0) -- (0,0.5) -- (0.9,0.5) -- (0.9,-0.5) -- (1.8,-0.5) -- (1.8,0);
+    \draw[->,midgrey] (1.95,0.6) -- (2.35,0.6);
+    \draw[brand,thick] plot[domain=0:1.8,samples=60] (\x+2.4,{0.4*sin(\x*200)+0.1*sin(\x*600)});
+    \node[lbl,font=\scriptsize\bfseries] at (2.1,0.95) {Distortion};
+    \node[lbl] at (2.1,-0.95) {shape changes (frequencies\\arrive at different times)};
+  \end{scope}
+  % noise
+  \begin{scope}[shift={(9.8,0)}]
+    \draw[->,midgrey] (0,0) -- (4.3,0);
+    \draw[midgrey,thick,dashed] plot[domain=0:4.1,samples=80] (\x,{0.45*sin(\x*180)});
+    \draw[brand,thick] plot[domain=0:4.1,samples=80] (\x,{0.45*sin(\x*180)+0.12*rand});
+    \node[lbl,font=\scriptsize\bfseries] at (2.1,0.95) {Noise};
+    \node[lbl] at (2.1,-0.95) {random energy added};
+  \end{scope}
+\end{tikzpicture}\\*
+{\scriptsize\color{midgrey}Figure: the three transmission impairments (sent signal grey/black, received signal orange).}\end{minipage}
+\end{center}
+
+\begin{pastq}{SE2024 Q1d}{3}Signals picks unwanted random energy, discuss such three transmission impairments.\end{pastq}
+\begin{ans}
+\begin{enumerate}
+\item \textbf{Attenuation}: loss of signal energy as it travels, overcoming the resistance of the medium (energy lost as heat). Measured in dB; fixed with amplifiers (analogue) or repeaters (digital).
+\item \textbf{Distortion}: the signal changes shape because its frequency components travel at different speeds and arrive at different times (delay distortion; dispersion in fibre).
+\item \textbf{Noise}: unwanted random energy added to the signal: \textbf{thermal} (random electron motion), \textbf{induced} (motors, appliances), \textbf{crosstalk} (one wire picks up another) and \textbf{impulse} (spikes from lightning, power lines). Quality is measured by the signal-to-noise ratio (SNR).
+\end{enumerate}
+\end{ans}
+\sidenote{The wording ``unwanted random energy'' describes \emph{noise}. If unsure, give attenuation/distortion/noise \textbf{and} name the four noise types: it covers both readings.}
+
+\subsection{Bandwidth and maximum data rate (outline topic)}
+\begin{itemize}
+\item \textbf{Bandwidth} (Hz) = the range of frequencies a channel passes, $B = f_{\text{high}} - f_{\text{low}}$. \textbf{Bit rate} = bits per second. \textbf{Baud rate} = signal elements per second; bit rate $=$ baud $\times \log_2 L$.
+\item \textbf{Nyquist} (noiseless channel): $\text{BitRate} = 2B\log_2 L$, $L$ = number of signal levels.
+\item \textbf{Shannon} (noisy channel): $C = B\log_2(1+\text{SNR})$, SNR as a ratio, not dB. $\text{SNR}_{\text{dB}} = 10\log_{10}\text{SNR}$.
+\end{itemize}
+
+\begin{working}[Lecture-notes examples]
+\begin{align*}
+\text{Nyquist: } B &= 5000\text{ Hz},\ L = 2 && \\
+\text{BitRate} &= 2 \times 5000 \times \log_2 2 = \mathbf{10\,000\text{ bps}} && \cmt{$\log_2 2 = 1$}\\[2pt]
+\text{Shannon: } B &= 3000\text{ Hz},\ \text{SNR} = 300 && \\
+C &= 3000 \times \log_2(301) && \cmt{$\log_2 x = \ln x / \ln 2$}\\
+&= 3000 \times 8.23 \approx \mathbf{24\,700\text{ bps}} && \cmt{$\ln 301 / \ln 2 = 5.707/0.693$}\\[2pt]
+\text{dB first: } \text{SNR}_{\text{dB}} = 30 &\Rightarrow \text{SNR} = 10^{30/10} = 1000 && \cmt{always convert dB to a ratio}
+\end{align*}
+\end{working}
+\sidenote{Calculator trick: $\log_2 x = \log_{10} x \div 0.301$. So $\log_2 301 = 2.479/0.301 = 8.23$.}
+
+\begin{trap}
+Putting SNR in dB straight into Shannon. $C = 3000\log_2(1+30)$ for a 30 dB line is \textbf{wrong}; use $\text{SNR} = 1000$. Nyquist gives the limit for a \emph{chosen} number of levels; Shannon gives the absolute ceiling no matter how many levels you use.
+\end{trap}
+
+%=====================================================================
+\section{Modulation and line coding}
+
+\textbf{Modulation} (digital-to-analogue) varies one property of a sine \textbf{carrier} to represent bits: \textbf{ASK} (amplitude), \textbf{FSK} (frequency), \textbf{PSK} (phase), \textbf{QAM} (amplitude + phase). Analogue-to-analogue: AM, FM, PM.
+\textbf{Line coding / encoding} (digital-to-digital) maps bits to voltage levels on the wire: NRZ, RZ, Manchester, Differential Manchester, AMI.
+
+\begin{center}
+\begin{minipage}{\linewidth}\centering
+\begin{tikzpicture}[x=13.5mm,y=1cm]
+  \def\bits{1,0,1,1,0,0,1,0}
+  \foreach \i in {0,...,8} \draw[midgrey!60,densely dashed] (\i,0.55) -- (\i,-4.75);
+  \foreach \b [count=\i from 0] in \bits \node[font=\small\bfseries,text=brand] at (\i+0.5,0.8) {\b};
+  % data NRZ
+  \node[lbl,anchor=east] at (-0.1,0) {Data};
+  \draw[ink,very thick] (0,0.3) -- (1,0.3) -- (1,-0.3) -- (2,-0.3) -- (2,0.3) -- (4,0.3) -- (4,-0.3) -- (6,-0.3) -- (6,0.3) -- (7,0.3) -- (7,-0.3) -- (8,-0.3);
+  % ASK
+  \node[lbl,anchor=east] at (-0.1,-1.5) {ASK\\\tiny 1 = carrier on};
+  \foreach \b [count=\i from 0] in \bits {
+    \pgfmathtruncatemacro\j{\i+1}
+    \draw[brand,thick] plot[domain=\i:\j,samples=60] (\x,{-1.5+0.42*\b*sin(720*\x)});}
+  % FSK
+  \node[lbl,anchor=east] at (-0.1,-3.0) {FSK\\\tiny 1 = high freq.};
+  \foreach \b [count=\i from 0] in \bits {
+    \pgfmathtruncatemacro\j{\i+1}
+    \pgfmathsetmacro\f{\b==1 ? 1440 : 720}
+    \draw[brand,thick] plot[domain=\i:\j,samples=90] (\x,{-3.0+0.42*sin(\f*\x)});}
+  % PSK
+  \node[lbl,anchor=east] at (-0.1,-4.5) {PSK\\\tiny 0 = 180\textdegree{} shift};
+  \foreach \b [count=\i from 0] in \bits {
+    \pgfmathtruncatemacro\j{\i+1}
+    \draw[brand,thick] plot[domain=\i:\j,samples=60] (\x,{-4.5+0.42*sin(720*\x+180*(1-\b))});}
+\end{tikzpicture}\\*
+{\scriptsize\color{midgrey}Figure: bit pattern 10110010 sent with ASK (amplitude), FSK (frequency) and BPSK (phase). Only one property changes each time.}\end{minipage}
+\end{center}
+
+\begin{center}
+\begin{minipage}{\linewidth}\centering
+\begin{tikzpicture}[x=13.5mm,y=1cm]
+  \def\bits{0,1,0,0,1,1,1,0}
+  \foreach \i in {0,...,8} \draw[midgrey!60,densely dashed] (\i,0.55) -- (\i,-1.85);
+  \foreach \b [count=\i from 0] in \bits \node[font=\small\bfseries,text=brand] at (\i+0.5,0.8) {\b};
+  \node[lbl,anchor=east] at (-0.1,0) {NRZ-L\\\tiny 1 = +V, 0 = $-$V};
+  \draw[ink,very thick] (0,-0.3) -- (1,-0.3) -- (1,0.3) -- (2,0.3) -- (2,-0.3) -- (4,-0.3) -- (4,0.3) -- (7,0.3) -- (7,-0.3) -- (8,-0.3);
+  \node[lbl,anchor=east] at (-0.1,-1.3) {Manchester\\\tiny 0 = high$\to$low\\\tiny 1 = low$\to$high};
+  \draw[brand,very thick]
+    (0,-1.0) -- (0.5,-1.0) -- (0.5,-1.6) -- (1,-1.6)      % 0
+    -- (1.5,-1.6) -- (1.5,-1.0) -- (2,-1.0)               % 1
+    -- (2,-1.0) -- (2.5,-1.0) -- (2.5,-1.6) -- (3,-1.6)   % 0
+    -- (3,-1.0) -- (3.5,-1.0) -- (3.5,-1.6) -- (4,-1.6)   % 0
+    -- (4.5,-1.6) -- (4.5,-1.0) -- (5,-1.0)               % 1
+    -- (5,-1.6) -- (5.5,-1.6) -- (5.5,-1.0) -- (6,-1.0)   % 1
+    -- (6,-1.6) -- (6.5,-1.6) -- (6.5,-1.0) -- (7,-1.0)   % 1
+    -- (7.5,-1.0) -- (7.5,-1.6) -- (8,-1.6);              % 0
+\end{tikzpicture}\\*
+{\scriptsize\color{midgrey}Figure: line coding of 01001110. Manchester (IEEE 802.3) has a transition in the middle of every bit, so the clock is carried in the signal.}\end{minipage}
+\end{center}
+
+\begin{pastq}{SE2024 Q5b}{6}Distinguish between modulation techniques verses encoding. Give two examples of each.\end{pastq}
+\begin{ans}
+\begin{tabularx}{\linewidth}{@{}XX@{}}
+\toprule
+\textbf{Modulation} & \textbf{Encoding (line coding)}\\\midrule
+Converts digital (or analogue) data into an \textbf{analogue} signal by varying a carrier's amplitude, frequency or phase & Converts digital data into a \textbf{digital} signal: a pattern of voltage levels/transitions\\
+For bandpass channels: telephone lines, radio, long distance & For baseband: short copper links, LAN cables\\
+Device: modem (modulator--demodulator) & Device: NIC / line encoder\\
+\textbf{Examples}: ASK, FSK, PSK, QAM (analogue: AM, FM) & \textbf{Examples}: NRZ-L/NRZ-I, Manchester (Ethernet), Differential Manchester, AMI\\
+\bottomrule
+\end{tabularx}
+\end{ans}
+\sidenote{6 marks = 2 for the definitions, 2 for the contrast, 2 for examples. Sketching ASK and Manchester for 3--4 bits makes it unarguable.}
+
+%=====================================================================
+\section{Multiplexing}
+
+\begin{keydef}{Multiplexing}
+Combining several signals from several sources into \textbf{one composite signal} so they share a \textbf{single link}. A \textbf{multiplexer (MUX)} is many-to-one; a \textbf{demultiplexer (DEMUX)} at the far end is one-to-many and delivers each signal to its own output.
+\end{keydef}
+
+\begin{center}
+\begin{minipage}{\linewidth}\centering
+\begin{tikzpicture}
+  \foreach \k/\y in {1/0.8,2/0,3/-0.8}{
+    \node[hostn] (s\k) at (0,\y) {Source \k};
+    \node[hostn] (d\k) at (11.8,\y) {Dest \k};}
+  \node[node,fill=brand,text=white,minimum height=24mm,minimum width=12mm] (mux) at (2.3,0) {MUX};
+  \node[node,fill=brand,text=white,minimum height=24mm,minimum width=12mm] (dmx) at (9.5,0) {DEMUX};
+  \foreach \k in {1,2,3}{\draw[link,->] (s\k) -- (s\k-|mux.west); \draw[link,->] (d\k-|dmx.east) -- (d\k);}
+  \draw[ink,line width=3pt] (mux.east) -- (dmx.east-|dmx.west);
+  \foreach \y/\c in {0.12/easyc,0/peach,-0.12/medc} \draw[\c,thick] (2.9,\y) -- (8.9,\y);
+  \node[lbl,above] at (5.9,0.2) {one shared link carrying $n$ channels};
+  \node[note] at (2.3,-1.55) {many-to-one}; \node[note] at (9.5,-1.55) {one-to-many};
+\end{tikzpicture}\\*
+{\scriptsize\color{midgrey}Figure: $n$ input lines share one link through a MUX/DEMUX pair.}\end{minipage}
+\end{center}
+
+\begin{pastq}{2025 Q2b.ii}{4}Describe the concept of multiplexing and its importance in data communication.\end{pastq}
+\begin{ans}
+\textbf{Concept}: a MUX combines $n$ signals into one composite signal on a single link; the DEMUX separates them at the receiver. The link is divided into channels by frequency (FDM), time (TDM) or wavelength of light (WDM).
+
+\textbf{Importance}:
+\begin{enumerate}
+\item \textbf{Efficient use of bandwidth}: one high-capacity link carries many low-rate signals instead of being under-used.
+\item \textbf{Lower cost}: one cable/fibre instead of many separate lines; less infrastructure to install and maintain.
+\item Allows many users to share expensive long-haul links: telephone trunks (E1), cable TV, fibre backbones, ADSL.
+\end{enumerate}
+\end{ans}
+
+\begin{pastq}{SE2024 Q1b}{4}Describe the two components that make up a multiplexor.\end{pastq}
+\begin{ans}
+\begin{enumerate}
+\item \textbf{Multiplexer (MUX)} at the sending end: \emph{many-to-one}. It takes $n$ input lines and combines them into a single composite stream (assigning each a frequency band or time slot) for the shared link.
+\item \textbf{Demultiplexer (DEMUX)} at the receiving end: \emph{one-to-many}. It separates the composite stream back into the $n$ original signals and sends each to its correct output line.
+\end{enumerate}
+They are joined by one \textbf{link} (the physical path) divided into $n$ \textbf{channels} (the logical paths).
+\end{ans}
+\sidenote{The question is ambiguous. ``MUX and DEMUX'' is the expected pair; mention ``link and channels'' in one line too, to cover the other reading.}
+
+\subsection{FDM, TDM and WDM}
+\begin{center}
+\begin{minipage}{\linewidth}\centering
+\begin{tikzpicture}
+  % FDM
+  \draw[->,midgrey] (0,0) -- (6.2,0) node[below left,lbl]{time};
+  \draw[->,midgrey] (0,0) -- (0,3.1) node[above,lbl]{frequency};
+  \draw[fill=peach] (0,0.2) rectangle (6,0.8) node[midway,font=\scriptsize]{Channel 1 (A): its band all the time};
+  \draw[pattern=north east lines,pattern color=midgrey] (0,0.8) rectangle (6,1.0);
+  \draw[fill=brand!55] (0,1.0) rectangle (6,1.6) node[midway,font=\scriptsize]{Channel 2 (B)};
+  \draw[pattern=north east lines,pattern color=midgrey] (0,1.6) rectangle (6,1.8);
+  \draw[fill=easyc!70] (0,1.8) rectangle (6,2.4) node[midway,font=\scriptsize]{Channel 3 (C)};
+  \node[lbl,anchor=west] at (3.6,2.7) {hatched = guard bands};
+  \node[font=\small\bfseries,text=brand] at (3,-0.55) {FDM: split the FREQUENCY};
+  % TDM
+  \begin{scope}[shift={(7.0,0)}]
+  \draw[->,midgrey] (0,0) -- (6.3,0) node[below left,lbl]{time};
+  \draw[->,midgrey] (0,0) -- (0,3.1) node[above,lbl]{frequency};
+  \foreach \k/\l/\c in {0/A/peach,1/B/brand!55,2/C/easyc!70,3/A/peach,4/B/brand!55,5/C/easyc!70}
+    \draw[fill=\c] (0.2+\k*1.0,0.2) rectangle (1.1+\k*1.0,2.4) node[midway,font=\small\bfseries]{\l};
+  \draw[decorate,decoration={brace,amplitude=4pt}] (0.2,2.5) -- (3.1,2.5) node[midway,above=3pt,lbl]{frame 1};
+  \draw[decorate,decoration={brace,amplitude=4pt}] (3.2,2.5) -- (6.1,2.5) node[midway,above=3pt,lbl]{frame 2};
+  \node[font=\small\bfseries,text=brand] at (3.2,-0.55) {TDM: split the TIME};
+  \end{scope}
+\end{tikzpicture}\\*
+{\scriptsize\color{midgrey}Figure: FDM gives each source a band all the time; TDM gives each source the whole bandwidth for its time slot in turn.}\end{minipage}
+\end{center}
+
+\begin{pastq}{SE2024 Q2a}{5}Differentiate between Frequency Division Multiplexing (FDM) and Time Division multiplexing (TDM) techniques.\end{pastq}
+\begin{ans}
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}lXX@{}}
+\toprule
+ & FDM & TDM\\\midrule
+Divides & Link \textbf{bandwidth} into frequency bands & Link \textbf{time} into slots (frames)\\
+Sharing & Each signal has its own band \emph{all the time}; all sent simultaneously & Each signal uses the \emph{whole} bandwidth for its slot, in rotation\\
+Signal type & Mainly analogue & Mainly digital\\
+Separation & Guard bands between channels & Synchronisation/framing bits, guard time\\
+Problem & Crosstalk between adjacent bands & Empty slots wasted (synchronous TDM) $\to$ statistical TDM\\
+Examples & Radio/TV broadcasting, cable TV, ADSL & Digital telephony T1/E1, GSM time slots\\
+\bottomrule
+\end{tabularx}
+\end{ans}
+
+\begin{itemize}
+\item \textbf{Synchronous TDM}: each input owns a fixed slot in every frame, even when idle. \textbf{Statistical (asynchronous) TDM}: slots are given only to inputs that have data, each slot carries an address. Better use of the link.
+\item \textbf{WDM} (Wavelength Division Multiplexing): FDM for light. Each signal is a different wavelength (``colour'') on the same fibre; a prism/grating combines and splits them. DWDM puts 80+ channels on one fibre.
+\item \textbf{CDM/CDMA}: all users share the same band at the same time, separated by unique codes (spread spectrum).
+\end{itemize}
+
+\begin{working}[TDM and FDM sizing]
+\textbf{FDM}: 5 voice channels of 4 kHz with 1 kHz guard bands. \textbf{Sync TDM}: 4 inputs at 64 kbps, 1 byte per slot.
+\begin{align*}
+B_{\text{FDM}} &= 5(4) + 4(1) = \mathbf{24\text{ kHz}} && \cmt{$n$ channels need $n-1$ guards}\\
+\text{TDM frame} &= 4 \times 8 = 32\text{ bits}\\
+\text{frames/s} &= 64\,000 / 8 = 8000 && \cmt{one byte per input per frame}\\
+\text{link rate} &= 32 \times 8000 = \mathbf{256\text{ kbps}} && \cmt{$= 4 \times 64$ kbps (+ framing bits)}
+\end{align*}
+\end{working}
+
+\subsection{Multiple access in mobile networks}
+
+\begin{pastq}{SE2024 Q1b.iii}{3}Compare and contrast Global system for mobile communication (GSM) and Code division multiple access (CDMA) wireless technology.\end{pastq}
+\begin{ans}
+\begin{tabularx}{\linewidth}{@{}XX@{}}
+\toprule
+\textbf{GSM} & \textbf{CDMA}\\\midrule
+FDMA + TDMA: 200 kHz carriers, each split into 8 time slots (8 users) & All users share the same wide band (1.25 MHz) at the same time, separated by unique codes (spread spectrum)\\
+SIM card: easy to change handset/network & Early systems tied the number to the handset (no SIM)\\
+Hard handoff (break before make) & Soft handoff (make before break): fewer dropped calls\\
+Most of the world (Zimbabwe: Econet, NetOne) & Mainly USA (Verizon, Sprint), parts of Asia\\
+\bottomrule
+\end{tabularx}
+\textbf{Similarities}: both are 2G/3G digital cellular multiple-access systems using cells and base stations; both carry voice and data and were replaced by 4G LTE (OFDMA).
+\end{ans}
+
+%=====================================================================
+\section{Switching}
+
+\begin{keydef}{Switching}
+Directing data from source to destination through intermediate \textbf{switching nodes} (switches, routers, exchanges) when there is no direct link between every pair of devices. It avoids the cost of a full mesh.
+\end{keydef}
+
+\begin{center}
+\begin{minipage}{\linewidth}\centering
+\begin{tikzpicture}[sn/.style={routern,minimum size=6.5mm,font=\tiny},
+                    hn/.style={hostn,minimum width=6mm,font=\scriptsize\bfseries}]
+  \foreach \px/\ttl in {0/Circuit switching,4.75/Message switching,9.5/Packet switching}{
+  \begin{scope}[shift={(\px,0)}]
+    \node[hn] (A) at (0,0) {A};
+    \node[hn] (B) at (3.9,0) {B};
+    \node[sn] (S1) at (1.15,0.8) {S1};
+    \node[sn] (S2) at (2.75,0.8) {S2};
+    \node[sn] (S3) at (1.15,-0.8) {S3};
+    \node[sn] (S4) at (2.75,-0.8) {S4};
+    \foreach \a/\b in {A/S1,A/S3,S1/S2,S3/S4,S1/S4,S2/B,S4/B,S1/S3,S2/S4} \draw[midgrey,thick] (\a) -- (\b);
+    \node[font=\scriptsize\bfseries,text=brand] at (1.95,1.5) {\ttl};
+  \end{scope}}
+  % circuit: dedicated path
+  \draw[brand,line width=2.2pt] (0.3,0.12) -- (0.9,0.62);
+  \draw[brand,line width=2.2pt] (1.48,0.8) -- (2.42,0.8);
+  \draw[brand,line width=2.2pt] (3.05,0.62) -- (3.6,0.12);
+  \node[lbl] at (1.95,-1.5) {dedicated path reserved\\setup $\to$ data $\to$ teardown};
+  % message
+  \begin{scope}[shift={(4.75,0)}]
+    \node[draw=ink,fill=easyc,font=\tiny\bfseries,inner sep=1.5pt] at (1.95,0.8) {MSG};
+    \node[draw=ink,fill=easyc,font=\tiny\bfseries,inner sep=1.5pt] at (1.95,0.55) {};
+    \node[lbl] at (1.95,-1.5) {whole message stored at\\each node, then forwarded};
+  \end{scope}
+  % packet
+  \begin{scope}[shift={(9.5,0)}]
+    \node[draw=ink,fill=peach,font=\tiny\bfseries,inner sep=1.5pt] at (1.95,0.8) {1};
+    \node[draw=ink,fill=peach,font=\tiny\bfseries,inner sep=1.5pt] at (1.95,-0.8) {2};
+    \node[draw=ink,fill=peach,font=\tiny\bfseries,inner sep=1.5pt] at (1.95,0.0) {3};
+    \node[draw=ink,fill=peach,font=\tiny\bfseries,inner sep=1.5pt] at (0.55,0.4) {4};
+    \node[lbl] at (1.95,-1.5) {packets routed independently,\\reassembled in order at B};
+  \end{scope}
+\end{tikzpicture}\\*
+{\scriptsize\color{midgrey}Figure: circuit (reserved path), message (whole message hops node to node) and packet switching (packets may take different routes).}\end{minipage}
+\end{center}
+
+\begin{pastq}{2025 Q3a}{9}Explain the concept of switching in networks. Differentiate between message switching, packet switching, and circuit switching.\end{pastq}
+\begin{ans}
+\textbf{Concept (2--3 marks)}: switching connects many devices through intermediate switching nodes instead of a direct link between every pair. Each node decides which outgoing link to send the data on. Three methods: circuit, message and packet switching.
+
+\small
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}p{1.6cm}XXX@{}}
+\toprule
+ & Circuit switching & Message switching & Packet switching\\\midrule
+Path & Dedicated end-to-end path set up before transfer, held for the whole call & No dedicated path; whole message stored at each node, then forwarded & No dedicated path; data split into packets, each forwarded independently (datagram) or along a virtual circuit\\
+Phases & Setup $\to$ data $\to$ teardown & Store-and-forward of whole message & Store-and-forward of small packets\\
+Resource use & Bandwidth reserved even when idle (wasteful) & Better link use, but nodes need large storage & Very efficient: links shared by many users\\
+Delay & Setup delay, then constant low delay, no jitter & High delay (whole message waits at every node) & Variable queuing delay, jitter; packets may arrive out of order\\
+Failure & Link failure drops the call & Message rerouted & Packets rerouted around failures\\
+Example & PSTN telephone, ISDN & Telegraph, early e-mail (telex) & Internet (IP), X.25, Frame Relay\\
+\bottomrule
+\end{tabularx}
+\end{ans}
+\sidenote{9 marks: about 2 for the concept, about 2 per method, and the rest for the contrast. The three-network figure earns its marks fast.}
+
+\begin{pastq}{2023 Q5b.i \textnormal{/} ISA2024 Q2d.i}{4}\emph{Switching, as applied to networking and IT, is the practice of directing a signal or data element toward a particular hardware destination.}
+Explain the main difference between a circuit-switched network and a packet switched network.\end{pastq}
+\begin{ans}
+\begin{itemize}
+\item \textbf{Circuit-switched}: a \textbf{dedicated end-to-end path} with fixed bandwidth is set up \emph{before} communication (call setup) and reserved for the whole session, even when nobody is talking; then it is torn down. Data follows the same path, in order, with constant delay.
+\item \textbf{Packet-switched}: \textbf{no path is reserved}. Data is split into packets with headers (destination address, sequence number) that share links with other traffic and are forwarded hop by hop (store-and-forward), possibly along different routes, then reassembled at the destination.
+\end{itemize}
+\textbf{Main difference}: reserved, dedicated resources (circuit) vs shared, on-demand resources (packet).
+\end{ans}
+
+\begin{pastq}{2023 Q5b.ii \textnormal{/} ISA2024 Q2d.ii}{4}Give two (2) examples of packet-switched protocols and two (2) examples of circuit switched protocols.\end{pastq}
+\begin{ans}
+\textbf{Packet-switched}: IP (IPv4/IPv6), X.25, Frame Relay, ATM (cell switching), MPLS, Ethernet.\\
+\textbf{Circuit-switched}: ISDN, PSTN/POTS (SS7 signalling), GSM 2G voice (circuit-switched calls), T1/E1 TDM lines, SONET/SDH.
+\end{ans}
+
+\begin{pastq}{2023 Q5b.iii}{2}Indicate which one would have higher latency and jitter and explain why.\end{pastq}
+\begin{ans}
+\textbf{Packet switching}. Each packet waits in router queues of different lengths, may take a different route, and is stored-and-forwarded at every hop, so delay changes from packet to packet (jitter). A circuit, once set up, has a fixed dedicated path, so its delay is constant.
+\end{ans}
+
+\begin{pastq}{SE2024 Q2c}{2+2}Describe the following switching techniques as used in data communication and networking: (i) Circuit switching (ii) Packet Switching.\end{pastq}
+\begin{ans}
+(i) \textbf{Circuit switching}: a dedicated physical path is established between the two stations for the whole duration of the communication (setup, transfer, teardown), e.g.\ a telephone call.\\
+(ii) \textbf{Packet switching}: the message is broken into small packets, each with a header, that travel independently through shared links (store-and-forward) and are reassembled at the destination, e.g.\ the Internet.
+\end{ans}
+
+\subsection{Datagram vs virtual circuit (two kinds of packet switching)}
+\begin{center}\small
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}lXX@{}}
+\toprule
+ & Datagram (connectionless) & Virtual circuit (connection-oriented)\\\midrule
+Setup & None; send immediately & Route set up first by a call-request packet\\
+Routing & Each packet routed independently; may take different routes & All packets follow the same pre-set route\\
+Header & Full destination address in every packet & Short virtual-circuit identifier (VCI)\\
+Order & May arrive out of order or be lost & Arrive in order\\
+Failure & Avoids failed nodes and congestion & A node failure breaks the circuit\\
+Best for & Short transactions (bank queries) & Long transfers (large files)\\
+Example & IP, UDP traffic & X.25, Frame Relay, ATM\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{mnemonic}
+\textbf{Switching} = how a path is found. \textbf{Multiplexing} = how one link is shared.
+Circuit = phone, Message = telegraph, Packet = Internet. FDM = frequency bands (radio), TDM = time slots (E1), WDM = colours of light (fibre).
+\end{mnemonic}
+
+%=====================================================================
+\section{ADSL, ISDN and terminal handling}
+
+\begin{pastq}{ISA2024 Q5b.i}{2}\emph{A common method for providing broadband Internet access over existing telephone lines is Asymmetric Digital Subscriber Line (ADSL).} Explain why is it called asymmetric?\end{pastq}
+\begin{ans}
+Because the \textbf{downstream} (download) data rate is much higher than the \textbf{upstream} (upload) rate, e.g.\ up to 8 Mbps down vs about 1 Mbps up (ADSL2+: 24 Mbps down). More of the frequency spectrum is given to downstream, because home users download far more than they upload.
+\end{ans}
+
+\begin{center}
+\begin{minipage}{\linewidth}\centering
+\begin{tikzpicture}
+  \draw[->,ink] (0,0) -- (13.6,0);
+  \node[lbl] at (9,-0.33) {frequency (not to scale) $\rightarrow$};
+  \draw[fill=easyc] (0.05,0) rectangle (0.95,1.0) node[midway,font=\scriptsize\bfseries,align=center]{Voice\\POTS};
+  \draw[pattern=north east lines,pattern color=midgrey] (0.95,0) rectangle (2.0,0.5);
+  \node[lbl] at (1.48,0.75) {guard};
+  \draw[fill=peach] (2.0,0) rectangle (4.9,1.0) node[midway,font=\scriptsize\bfseries,align=center]{Upstream\\data (small)};
+  \draw[fill=brand,text=white] (5.0,0) rectangle (13.0,1.7) node[midway,font=\small\bfseries,text=white,align=center]{Downstream data (large)\\[-1pt]{\scriptsize DMT: many 4.3125 kHz sub-channels}};
+  \foreach \x/\l in {0/0,0.95/4 kHz,2.0/25 kHz,4.95/138 kHz,13.0/1.1 MHz}{
+    \draw[ink] (\x,0) -- (\x,-0.1); \node[lbl,below] at (\x,-0.1) {\l};}
+\end{tikzpicture}
+
+\vspace{2mm}
+\begin{tikzpicture}
+  \node[hostn,minimum width=14mm] (ph) at (0,0.7) {Telephone};
+  \node[hostn,minimum width=14mm] (mo) at (0,-0.7) {ADSL modem\\+ PC};
+  \node[node,fill=peach,minimum width=12mm] (sp1) at (2.4,0) {Splitter /\\filter};
+  \node[node,fill=peach,minimum width=12mm] (sp2) at (8.2,0) {Splitter};
+  \node[node,fill=cream,minimum width=16mm] (pstn) at (10.6,0.7) {PSTN voice\\switch};
+  \node[switchn] (dslam) at (10.6,-0.7) {DSLAM};
+  \node[routern] (isp) at (12.7,-0.7) {ISP};
+  \draw[link] (ph) -- (sp1); \draw[link] (mo) -- (sp1);
+  \draw[ink,line width=2.5pt] (sp1) -- (sp2) node[midway,above,lbl]{one copper twisted pair (local loop)} node[midway,below,lbl]{voice + data together, different bands};
+  \draw[link] (sp2) -- (pstn); \draw[link] (sp2) -- (dslam); \draw[link] (dslam) -- (isp);
+  \node[note] at (0.9,1.45) {HOME}; \node[note] at (10.6,1.45) {LOCAL EXCHANGE};
+\end{tikzpicture}\\*
+{\scriptsize\color{midgrey}Figure: ADSL frequency split (FDM on one pair) and the splitters that separate voice from data at both ends.}\end{minipage}
+\end{center}
+
+\begin{pastq}{ISA2024 Q5b.ii}{5}Describe how ADSL is able to transmit both data and telephone calls over the same twisted pair cable connecting a house to a local exchange, without the two signals interfering with each other.\end{pastq}
+\begin{ans}
+ADSL uses \textbf{frequency division multiplexing} on the copper pair:
+\begin{enumerate}
+\item \textbf{0--4 kHz}: ordinary voice telephone (POTS), exactly as before.
+\item \textbf{About 25--138 kHz}: upstream data; \textbf{138 kHz--1.1 MHz}: downstream data. A guard band separates voice from data.
+\item Because voice and data occupy \textbf{different frequency bands}, they do not interfere and can be used at the same time.
+\item The data bands are split by \textbf{DMT} (discrete multitone) into many small sub-channels, each modulated (QAM) and adapted to the line quality.
+\item At the home a \textbf{splitter/microfilter} sends low frequencies to the phone and high ones to the ADSL modem; at the exchange another splitter sends voice to the PSTN switch and data to the \textbf{DSLAM}, which connects to the ISP.
+\end{enumerate}
+\end{ans}
+\sidenote{Draw the frequency bar. It shows both answers at once: the bands explain ``no interference'', the bigger downstream block explains ``asymmetric''.}
+
+\subsection{ISDN (outline topic)}
+\textbf{ISDN} (Integrated Services Digital Network) is an end-to-end \textbf{digital, circuit-switched} telephone network carrying voice, data, fax and video over ordinary copper. It uses \textbf{B channels} (bearer, 64 kbps, user data) and a \textbf{D channel} (signalling/control).
+
+\begin{center}
+\begin{minipage}{\linewidth}\centering
+\begin{tikzpicture}[x=0.8mm,y=6mm]
+  \node[lbl,anchor=east,font=\scriptsize\bfseries] at (-2,0.5) {BRI = 2B + D};
+  \draw[fill=peach] (0,0) rectangle (40,1) node[midway,font=\scriptsize]{B1 64 kbps};
+  \draw[fill=peach] (40,0) rectangle (80,1) node[midway,font=\scriptsize]{B2 64 kbps};
+  \draw[fill=brand,text=white] (80,0) rectangle (90,1) node[midway,font=\tiny,text=white]{D 16};
+  \node[lbl,anchor=west] at (92,0.5) {= 144 kbps (homes, small offices)};
+  \node[lbl,anchor=east,font=\scriptsize\bfseries] at (-2,-1) {PRI};
+  \node[lbl,anchor=west] at (0,-1) {E1: 30B + D (64 kbps) = 2.048 Mbps line \quad T1: 23B + D = 1.544 Mbps line};
+\end{tikzpicture}\\*
+{\scriptsize\color{midgrey}Figure: ISDN channel structure.}\end{minipage}
+\end{center}
+
+\begin{working}[ISDN BRI rate]
+\begin{align*}
+\text{BRI} &= 2 \times 64 + 16 = \mathbf{144\text{ kbps}} && \cmt{192 kbps on the wire with framing}\\
+\text{E1 PRI} &= 30 \times 64 + 64 + 64 = \mathbf{2048\text{ kbps}} && \cmt{30 B + D + framing slot}
+\end{align*}
+\end{working}
+
+\subsection{Terminal handling (outline topic)}
+\begin{center}
+\begin{minipage}{\linewidth}\centering
+\begin{tikzpicture}
+  \node[node,fill=ink,text=white,minimum height=12mm] (h) at (0,0) {Host\\mainframe};
+  \node[node,fill=cream] (fep) at (2.7,0) {Front-end\\processor};
+  \node[node,fill=peach] (c) at (7.4,0) {Concentrator\\/ MUX};
+  \draw[link] (h) -- (fep);
+  \draw[ink,line width=2pt] (fep) -- (c) node[midway,above,lbl]{one long-distance line} node[midway,below,lbl]{(modems at each end)};
+  \foreach \k/\y in {1/1.1,2/0.37,3/-0.37,4/-1.1}{
+    \node[hostn] (t\k) at (10.6,\y) {Terminal \k};
+    \draw[link] (c.east) -- (t\k.west);}
+  \draw[msg,dashed] (fep.south) -- (2.7,-1.75) -- (10.6,-1.75) node[pos=0.5,below,lbl]{poll: ``Terminal 4, anything to send?''} -- (t4.south);
+\end{tikzpicture}\\*
+{\scriptsize\color{midgrey}Figure: many dumb terminals share one line to the host through a concentrator; the host polls each in turn.}\end{minipage}
+\end{center}
+\begin{itemize}
+\item \textbf{Terminal handling} = connecting many (dumb) terminals to a central host cheaply and controlling who may send.
+\item \textbf{Multiplexer}: fixed sharing (TDM/FDM); output capacity = sum of inputs. \textbf{Concentrator}: statistical sharing with buffering; output capacity $<$ sum of inputs because terminals are idle most of the time.
+\item \textbf{Front-end processor}: handles line control, polling and error checking so the host CPU does not have to.
+\item \textbf{Polling}: the host asks each terminal in turn ``do you have data?''. \textbf{Selection}: the host asks a terminal ``are you ready to receive?'' before sending.
+\end{itemize}
+
+%=====================================================================
+\section{Practice questions}
+\setcounter{pq}{0}
+
+\begin{practice}{easy}{2}A noiseless channel has a bandwidth of 3000 Hz and uses 4 signal levels. Find the maximum bit rate.
+\sol
+\begin{working}
+\begin{align*}
+\text{BitRate} &= 2B\log_2 L = 2 \times 3000 \times \log_2 4 && \cmt{Nyquist: noiseless}\\
+&= 6000 \times 2 = \mathbf{12\,000\text{ bps}}
+\end{align*}
+\end{working}
+\end{practice}
+
+\begin{practice}{easy}{3}Name the three layers of a fibre optic cable from the centre outwards and give the job of each.
+\sol (1) \textbf{Core}: thin glass, higher refractive index, carries the light. (2) \textbf{Cladding}: glass of lower refractive index, reflects light back into the core (total internal reflection). (3) \textbf{Buffer/jacket}: plastic coating that protects against damage and moisture.
+\end{practice}
+
+\begin{practice}{easy}{3}State the channel structure and total user rate of ISDN Basic Rate Interface.
+\sol BRI = \textbf{2B + D}: two 64 kbps bearer channels for voice/data and one 16 kbps D channel for signalling. $2 \times 64 + 16 = \mathbf{144\text{ kbps}}$.
+\end{practice}
+
+\begin{practice}{easy}{2}Differentiate between bit rate and baud rate.
+\sol \textbf{Bit rate} = number of bits sent per second (bps). \textbf{Baud rate} = number of signal elements (symbols) per second. Bit rate $=$ baud $\times \log_2 L$, so with 4 levels, 1000 baud carries 2000 bps.
+\end{practice}
+
+\begin{practice}{medium}{5}A telephone line has a bandwidth of 3100 Hz and an SNR of 30 dB. (a) Find its Shannon capacity. (b) How many signal levels are needed to reach this rate?
+\sol
+\begin{working}
+\begin{align*}
+\text{SNR} &= 10^{30/10} = 1000 && \cmt{convert dB first}\\
+C &= 3100 \times \log_2(1001) = 3100 \times 9.97 \approx \mathbf{30\,900\text{ bps}}\\
+30\,900 &= 2 \times 3100 \times \log_2 L && \cmt{Nyquist}\\
+\log_2 L &= 4.98 \Rightarrow L \approx 32 \text{ levels} && \cmt{round up to a power of 2}
+\end{align*}
+\end{working}
+\end{practice}
+
+\begin{practice}{medium}{4}Draw the NRZ-L and Manchester signals for the bit pattern 10110. State one advantage of Manchester.
+\sol NRZ-L: high, low, high, high, low (one level for the whole bit). Manchester (IEEE 802.3): 1 = low-to-high in mid-bit, 0 = high-to-low, so: $\uparrow$, $\downarrow$, $\uparrow$, $\uparrow$, $\downarrow$, with an extra edge at the bit boundary between two equal bits.
+\textbf{Advantage}: a transition in every bit, so the receiver recovers the clock from the signal (self-synchronising) and there is no DC build-up. (Cost: needs twice the bandwidth.)
+\end{practice}
+
+\begin{practice}{medium}{5}Compare the datagram and virtual-circuit approaches to packet switching.
+\sol \textbf{Datagram}: connectionless, no setup; each packet carries the full destination address and is routed independently, so packets may take different routes, arrive out of order or be lost; robust to node failure; good for short transactions; e.g.\ IP.
+\textbf{Virtual circuit}: connection-oriented; a route is set up first by a call-request packet; packets carry a short VC identifier and all follow the same route, arriving in order; faster per-packet forwarding, but a node failure breaks the circuit; good for long transfers; e.g.\ X.25, Frame Relay, ATM.
+\end{practice}
+
+\begin{practice}{medium}{5}Eight sources of 56 kbps are combined by synchronous TDM, one byte per slot, with 1 framing bit per frame. Find the frame size, frame rate and link rate.
+\sol
+\begin{working}
+\begin{align*}
+\text{frame} &= 8 \times 8 + 1 = \mathbf{65\text{ bits}} && \cmt{one byte from every source + 1 framing bit}\\
+\text{frame rate} &= 56\,000 / 8 = \mathbf{7000\text{ frames/s}} && \cmt{each source sends 7000 bytes/s}\\
+\text{link rate} &= 65 \times 7000 = \mathbf{455\text{ kbps}} && \cmt{$8 \times 56 = 448$ + 7 kbps framing}
+\end{align*}
+\end{working}
+\end{practice}
+
+\begin{practice}{hard}{12}With the aid of diagrams, discuss three multiplexing techniques used in data communication, giving an application of each and comparing synchronous with statistical TDM.
+\sol
+\textbf{Multiplexing} lets $n$ signals share one link through a MUX (many-to-one) and DEMUX (one-to-many). (2)\\
+\textbf{FDM} (3): the link bandwidth is divided into frequency bands, one per signal, separated by guard bands; all signals are sent at the same time. Analogue. E.g.\ radio/TV, cable TV, ADSL. Diagram: stacked bands on a frequency/time graph.\\
+\textbf{TDM} (3): time is divided into slots grouped into frames; each source uses the whole bandwidth for its slot in rotation. Digital. E.g.\ E1/T1 telephone trunks, GSM. Diagram: A B C | A B C slots.\\
+\textbf{WDM} (2): FDM for light; each signal on its own wavelength in one fibre, combined/split by a prism or grating. E.g.\ fibre backbones (DWDM, 80+ channels).\\
+\textbf{Synchronous vs statistical TDM} (2): synchronous gives every input a fixed slot in every frame, so idle inputs waste slots; statistical TDM gives slots only to inputs with data, each slot carries an address, so the link can be smaller than the sum of the inputs.
+\end{practice}
+
+\begin{practice}{hard}{10}A home user's telephone line has usable bandwidth from 25 kHz to 1.1 MHz for data and an SNR of 40 dB. (a) Calculate the theoretical maximum data rate. (b) Explain why a dial-up modem on the same line only reaches 56 kbps. (c) Explain why the real ADSL rate is much lower than your answer to (a).
+\sol
+\begin{working}
+\begin{align*}
+B &= 1\,100\,000 - 25\,000 = 1\,075\,000\text{ Hz} && \cmt{bandwidth = high $-$ low}\\
+\text{SNR} &= 10^{40/10} = 10\,000\\
+C &= 1.075 \times 10^{6} \times \log_2(10\,001) && \cmt{$\log_2 10\,001 \approx 13.29$}\\
+&\approx \mathbf{14.3\text{ Mbps}}
+\end{align*}
+\end{working}
+(b) A dial-up modem sends through the telephone network's voice channel, which is filtered to about 300--3400 Hz (B $\approx$ 3.1 kHz), and the exchange samples voice at 8000 $\times$ 7--8 bits, giving at most 56 kbps. ADSL bypasses the filter and uses up to 1.1 MHz of the copper pair.\\
+(c) Shannon is a theoretical ceiling; real lines have attenuation that grows with distance and frequency, crosstalk from other pairs, and impulse noise, so DMT turns off or slows the noisy sub-channels. Part of the band is upstream, and coding/framing overhead also takes capacity.
+\end{practice}
+
+\begin{practice}{hard}{12}A company has offices in two cities 300 km apart. Discuss whether it should use a circuit-switched leased line or a packet-switched service for (i) voice calls and (ii) file and e-mail traffic. Support your answer with a diagram and refer to delay, jitter, cost and efficiency.
+\sol
+Diagram: the circuit vs packet network figure (dedicated path A--S1--S2--B vs numbered packets on different routes). (3)\\
+\textbf{Voice} (4): needs low, \emph{constant} delay and low jitter (under about 150 ms one way). A circuit gives a dedicated path with fixed bandwidth and no queuing, so quality is guaranteed; but bandwidth is wasted in silences and it is paid for all the time. Packet voice (VoIP) is cheaper and acceptable only with QoS (priority queuing, jitter buffers).\\
+\textbf{Files and e-mail} (4): bursty, tolerate delay and jitter, need reliability rather than timing. Packet switching shares links among many users (statistical multiplexing), so it is far cheaper and more efficient; packets reroute around failures; TCP fixes loss and order.\\
+\textbf{Recommendation} (1): a packet-switched service (e.g.\ MPLS VPN) with QoS for voice, because it carries both types on one link at lower cost; keep a circuit only if guaranteed voice quality is critical.
+\end{practice}
+
+%=====================================================================
+\newpage
+\begin{cheatsheet}
+\small
+\begin{tabularx}{\linewidth}{@{}XX@{}}
+\textbf{Media}
+\begin{itemize}
+\item Guided = bounded: twisted pair, coax, fibre
+\item Unguided = unbounded: radio (omni), microwave (line of sight), infrared (no walls)
+\item UTP $\approx$100 m, twist cancels noise; STP adds a shield
+\item Coax: conductor, insulator, braid shield, jacket
+\item Enterprise: UTP to desks, fibre backbone, Wi-Fi APs
+\item Distance: UTP 100 m, coax 500 m, fibre 2--100+ km
+\end{itemize}
+\textbf{Fibre}
+\begin{itemize}
+\item LED/laser $\to$ core $\to$ photodetector
+\item Core index $>$ cladding index; angle $>$ critical $\Rightarrow$ total internal reflection
+\item SM: thin core, laser, long; MM: thick, LED, short
+\item Beats copper: bandwidth, low attenuation, EMI-immune, secure, light
+\end{itemize}
+\textbf{Signals}
+\begin{itemize}
+\item Analogue continuous; digital discrete, regenerable
+\item Impairments: attenuation, distortion, noise (thermal, induced, crosstalk, impulse)
+\item Sync = shared clock, blocks; async = start/stop bits
+\item Nyquist $2B\log_2 L$; Shannon $B\log_2(1+\text{SNR})$
+\item SNR $= 10^{\text{dB}/10}$; bit rate = baud $\times \log_2 L$
+\end{itemize}
+&
+\textbf{Modulation vs encoding}
+\begin{itemize}
+\item Modulation: carrier, analogue out: ASK, FSK, PSK, QAM
+\item Encoding: voltage levels: NRZ, Manchester, AMI
+\item Manchester: 0 = high$\to$low, 1 = low$\to$high
+\end{itemize}
+\textbf{Multiplexing}
+\begin{itemize}
+\item MUX many-to-one; DEMUX one-to-many; link + channels
+\item FDM: bands + guard bands, analogue, radio/ADSL
+\item TDM: time slots + framing, digital, E1/GSM
+\item Stat TDM: slots on demand; WDM: wavelengths on fibre
+\item GSM = FDMA+TDMA, SIM, hard handoff; CDMA = codes, soft handoff
+\end{itemize}
+\textbf{Switching}
+\begin{itemize}
+\item Circuit: dedicated path, setup/data/teardown, PSTN, ISDN; fixed delay
+\item Message: whole message store-and-forward, telegraph
+\item Packet: packets share links, IP, X.25, Frame Relay; jitter
+\item Packet = highest latency \& jitter (queues, different routes)
+\end{itemize}
+\textbf{Datagram vs VC}
+\begin{itemize}
+\item Datagram: no setup, full address, own route, may reorder (IP)
+\item VC: call setup, short VCI, same route, in order (X.25, ATM)
+\end{itemize}
+\textbf{ADSL}
+\begin{itemize}
+\item Asymmetric: downstream $\gg$ upstream (8 vs 1 Mbps)
+\item FDM: voice 0--4 kHz, up 25--138 kHz, down 138 kHz--1.1 MHz
+\item DMT sub-channels; splitter at home, splitter + DSLAM at exchange
+\end{itemize}
+\textbf{ISDN}: digital, circuit-switched. BRI 2B+D = $2\times64+16$ = 144 kbps; PRI 30B+D (E1, 2.048 Mbps), 23B+D (T1).\par
+\textbf{Terminal handling}: MUX (fixed) vs concentrator (statistical, buffers); front-end processor; polling (``send?'') and selection (``ready to receive?'').
+\end{tabularx}
+\end{cheatsheet}
+
+\end{document}

@@ -1,0 +1,1124 @@
+\documentclass[10pt]{article}
+\usepackage{dcn}
+% local helpers for this pack
+\tikzset{
+  dec/.style={diamond,draw=ink,fill=peach,aspect=2.3,inner sep=1pt,font=\scriptsize,align=center},
+  proc/.style={draw=ink,fill=cream,rounded corners=2pt,minimum height=6mm,font=\scriptsize,align=center,text width=30mm},
+  bitc/.style={font=\ttfamily\small,inner sep=0pt,minimum width=3mm},
+}
+\newcommand{\bitrow}[4][ink]{\foreach \b [count=\k from 0] in {#4}{\node[bitc,text=#1] at (#2+\k,#3) {\b};}}
+\begin{document}
+
+\packtitle{04}{Data Link Layer: MAC, Error \& Flow Control, LAN Devices}
+  {Course outline weeks 3--4: medium access sub-layer, channel allocation, ALOHA, IEEE 802, data link protocols, error handling, bridges \& switches}{VERY HIGH}
+
+This topic is in \hl{every} paper: 26 question parts worth 3--10 marks each. CSMA/CD is in 3 papers, LLC/MAC in 2, and the 2025 paper spent 23 marks on bridges, switches and routers.
+Most marks are for clear definitions, a comparison table and a labelled diagram, so learn the pictures in this pack.
+
+\subsection*{How often this topic is examined}
+\begin{tabularx}{\linewidth}{@{}Xll@{}}
+\toprule
+\textbf{Question asked} & \textbf{Paper(s)} & \textbf{Marks}\\
+\midrule
+CSMA/CD: define / explain with a diagram / in Ethernet & 2018 Q3b(i), SE2024 Q2b, ISA2024 Q4a & 3--5\\
+CSMA/CA; table CSMA/CD vs CSMA/CA & 2018 Q3b(ii), 2023 Q4a & 3--5\\
+LLC and MAC sub-layers & 2023 Q5a, ISA2024 Q1c & 6\\
+Pure and slotted ALOHA with diagrams & ISA2024 Q4c & 4+4\\
+Error types + detection methods & 2023 Q4b, SE2024 Q3a & 3--4\\
+FEC, Hamming distance, piggybacking & 2018 Q1b & 3 each\\
+Stop-and-wait protocol & 2018 Q4b & 4\\
+Structure of a MAC address & 2018 Q4d & 5\\
+Corrupted destination address on a bus LAN & 2025 Q5b & 3+3\\
+Bridge in data-link switching; repeater vs bridge & 2025 Q4c, SE2024 Q1b(ii) & 2--7\\
+Hub vs switch; why a switch is intelligent & SE2024 Q4f, 2018 Q5d & 3--5\\
+Router vs switch (layers and functions) & 2025 Q5d & 10\\
+VLAN and its uses & 2018 Q5c & 4\\
+\textit{Also here (tagged T05 in the bank):} ARP; network segmentation & 2018 Q3b(iii), ISA2024 Q1b & 3--6\\
+\bottomrule
+\end{tabularx}
+
+\begin{examtip}
+Three diagrams pay again and again: the \textbf{CSMA/CD flowchart}, the \textbf{ALOHA timelines} and the \textbf{hub vs switch vs router} domain picture.
+For any ``differentiate'' question, draw a table with a \emph{Basis} column: it is quicker to write and easier to mark.
+\end{examtip}
+
+%=====================================================================
+\section{The data link layer and its two sub-layers}
+
+The data link layer (Layer 2) gives \textbf{node-to-node (hop-to-hop) delivery} of \textbf{frames} over one link.
+Its functions: \textbf{framing}, \textbf{physical (MAC) addressing}, \textbf{flow control}, \textbf{error control} and \textbf{access control} (who may use a shared medium).
+IEEE 802 splits it into two sub-layers.
+\begin{itemize}
+\item \textbf{Services to the network layer}: unacknowledged connectionless (Ethernet), acknowledged connectionless (Wi-Fi), acknowledged connection-oriented (numbered frames, used on unreliable links).
+\item \textbf{Node-to-node vs end-to-end}: Layer 2 delivers a frame to the next hop only; Layer 4 (TCP) gives end-to-end reliability.
+\end{itemize}
+
+\begin{center}
+\begin{tikzpicture}
+  \foreach \n/\name [count=\i] in {7/Application,6/Presentation,5/Session,4/Transport,3/Network,2/Data link,1/Physical}
+    \node[layer,minimum width=34mm,fill=cream] (L\n) at (0,-\i*0.75) {\n\quad \name};
+  \node[layer,minimum width=34mm,fill=brand,text=white,font=\small\bfseries] at (L2) {2\quad Data link};
+  \node[layer,minimum width=40mm,minimum height=10mm,fill=peach] (llc) at (5.6,-4.05)
+     {\textbf{LLC} -- Logical Link Control\\[-1pt]{\scriptsize IEEE 802.2 \textbullet{} upper sub-layer}};
+  \node[layer,minimum width=40mm,minimum height=10mm,fill=brand!70,text=white] (mac) at (5.6,-5.05)
+     {\textbf{MAC} -- Media Access Control\\[-1pt]{\scriptsize 802.3 / 802.11 / 802.5 \textbullet{} lower}};
+  \draw[dashed,midgrey,thick] (L2.north east) -- (llc.north west);
+  \draw[dashed,midgrey,thick] (L2.south east) -- (mac.south west);
+  \node[lbl,anchor=west,text width=36mm,align=left] at (7.8,-4.05) {flow \& error control (ACKs), names the network protocol (SAP); same for every LAN};
+  \node[lbl,anchor=west,text width=36mm,align=left] at (7.8,-5.05) {framing, MAC addresses, FCS (CRC) check, channel access: CSMA/CD, CSMA/CA, token};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: LLC sits on top of MAC inside the OSI data link layer. LLC talks to Layer 3, MAC talks to Layer 1.}
+\end{center}
+
+
+\begin{pastq}{2023 Q5a \textnormal{/} ISA2024 Q1c}{3+3 / 6}The data link layer in the IEEE standard is divided into two (2) sub layers. Discuss the functions performed by: (i) LLC (ii) MAC. / Explain the layers in detail.\end{pastq}
+\begin{ans}
+\textbf{(i) LLC -- Logical Link Control (upper sub-layer, IEEE 802.2)}
+\begin{enumerate}
+\item \textbf{Interface to the network layer}: identifies which Layer 3 protocol (IPv4, IPv6, \dots) is carried, using service access points (SAPs), so several protocols can share one link (multiplexing).
+\item \textbf{Flow control}: stops a fast sender swamping a slow receiver (stop-and-wait, sliding window).
+\item \textbf{Error control}: sequence numbers, acknowledgements and retransmission of lost or damaged frames (in connection-oriented LLC).
+\item Gives connectionless or connection-oriented service and is \textbf{independent of the medium}: the same LLC runs over Ethernet, Wi-Fi or Token Ring.
+\end{enumerate}
+\textbf{(ii) MAC -- Media Access Control (lower sub-layer, 802.3 / 802.11)}
+\begin{enumerate}
+\item \textbf{Framing}: builds the frame (preamble, destination and source MAC, type, data, FCS) and finds frame boundaries.
+\item \textbf{Physical addressing}: adds 48-bit source and destination MAC addresses; accepts only frames addressed to the station (or broadcast).
+\item \textbf{Media access control}: decides who may transmit on a shared medium and when: CSMA/CD (Ethernet), CSMA/CA (Wi-Fi), token passing.
+\item \textbf{Error detection}: computes and checks the CRC in the FCS; damaged frames are discarded.
+\item Interfaces with the physical layer, so it is \textbf{specific to each LAN technology}.
+\end{enumerate}
+\end{ans}
+\sidenote{Easy split to remember: LLC = \textbf{logical} jobs (talk to Layer 3, flow, errors). MAC = \textbf{media} jobs (frame, address, access, CRC).}
+
+%=====================================================================
+\section{Framing, MAC addresses and ARP}
+
+\subsection{Framing}
+Framing breaks the bit stream into frames so the receiver knows where each one starts and ends.
+\begin{itemize}
+\item \textbf{Character count}: a header field gives the frame length. One corrupted count loses synchronisation.
+\item \textbf{Flag bytes with byte stuffing}: frames start and end with a FLAG byte; a FLAG or ESC inside the data is preceded by an ESC byte.
+\item \textbf{Flag bits with bit stuffing} (HDLC): flag = \texttt{01111110}. After \textbf{five 1s} in the data the sender inserts a \textbf{0}; the receiver removes it. Data \texttt{01111110} is sent as \texttt{011111\textcolor{brand}{0}10}.
+\item \textbf{Physical-layer coding violations}: use a signal pattern that never appears in data (e.g.\ in Manchester coding).
+\end{itemize}
+
+\subsection{The Ethernet (IEEE 802.3) frame}
+\begin{center}
+\begin{tikzpicture}[y=8mm]
+  \draw[fill=cream] (0,0) rectangle (1.8,1) node[midway,font=\scriptsize]{Preamble};
+  \draw[fill=cream] (1.8,0) rectangle (2.7,1) node[midway,font=\scriptsize]{SFD};
+  \draw[fill=peach] (2.7,0) rectangle (4.9,1) node[midway,font=\scriptsize\bfseries]{Destination MAC};
+  \draw[fill=peach] (4.9,0) rectangle (7.1,1) node[midway,font=\scriptsize\bfseries]{Source MAC};
+  \draw[fill=easyc!40] (7.1,0) rectangle (8.5,1) node[midway,font=\scriptsize,align=center]{Type /\\[-2pt]Length};
+  \draw[fill=white] (8.5,0) rectangle (12.3,1) node[midway,font=\scriptsize]{Data (+ pad)};
+  \draw[fill=brand!60] (12.3,0) rectangle (13.7,1) node[midway,font=\scriptsize\bfseries]{FCS};
+  \foreach \c/\t in {0.9/7 B,2.25/1 B,3.8/6 B,6.0/6 B,7.8/2 B,10.4/46--1500 B,13.0/4 B}
+    \node[font=\scriptsize\bfseries,text=brand] at (\c,1.3) {\t};
+  \draw[decorate,decoration={brace,mirror,amplitude=4pt}] (0,-0.1) -- (2.7,-0.1)
+     node[midway,below=5pt,lbl]{sync: 1010\dots1010 then\\10101011 (start of frame)};
+  \draw[decorate,decoration={brace,mirror,amplitude=4pt}] (2.7,-0.1) -- (13.7,-0.1)
+     node[midway,below=5pt,lbl]{the frame proper: \textbf{64 to 1518 bytes}; the FCS (CRC-32) covers all of it};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: Ethernet II frame. Type 0x0800 = IPv4, 0x0806 = ARP, 0x86DD = IPv6. Short data is padded up to 46 bytes.}
+\end{center}
+
+\subsection{The MAC address}
+\begin{pastq}{2018 Q4d}{5}With the aid of an example describe the structure of MAC address.\end{pastq}
+\begin{center}
+\begin{tikzpicture}[y=8mm]
+  \foreach \i/\v in {0/00,1/1A,2/2B}{\draw[fill=peach] (\i*1.6,0) rectangle ++(1.6,1) node[midway,font=\ttfamily\bfseries]{\v};}
+  \foreach \i/\v in {3/3C,4/4D,5/5E}{\draw[fill=cream] (\i*1.6,0) rectangle ++(1.6,1) node[midway,font=\ttfamily\bfseries]{\v};}
+  \draw[decorate,decoration={brace,amplitude=5pt}] (0,1.1) -- (4.8,1.1) node[midway,above=6pt,lbl]{\textbf{OUI} (24 bits): maker's ID from IEEE};
+  \draw[decorate,decoration={brace,amplitude=5pt}] (4.8,1.1) -- (9.6,1.1) node[midway,above=6pt,lbl]{\textbf{NIC-specific} (24 bits): set by maker};
+  % zoom on first byte
+  \draw[dashed,midgrey] (0,0) -- (0,-1.3); \draw[dashed,midgrey] (1.6,0) -- (4.8,-1.3);
+  \foreach \k in {0,...,7}{
+    \pgfmathsetmacro{\fc}{\k>5 ? "brand!35" : "white"}
+    \draw[fill=\fc] (\k*0.6,-1.3) rectangle ++(0.6,-0.8) node[midway,font=\ttfamily\small]{0};
+    \pgfmathtruncatemacro{\bn}{7-\k}
+    \node[font=\tiny] at (\k*0.6+0.3,-2.35) {b\bn};}
+  \node[lbl,anchor=west,text width=48mm,align=left] at (5.3,-1.75)
+    {\textbf{b0 I/G}: 0 = unicast, 1 = multicast/group\\\textbf{b1 U/L}: 0 = global (burned-in), 1 = locally set\\[1pt]first byte 00 = 0000\,0000: unicast, global};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: a 48-bit MAC address 00-1A-2B-3C-4D-5E and the two special bits of its first byte.}
+\end{center}
+\begin{ans}
+\begin{enumerate}
+\item A MAC address is a \textbf{48-bit (6-byte) physical address}, written as 12 hex digits, e.g.\ \texttt{00-1A-2B-3C-4D-5E}. It is burned into the NIC's ROM and used for delivery \textbf{inside one LAN}.
+\item \textbf{First 24 bits = OUI} (Organisationally Unique Identifier): the manufacturer's code, assigned by IEEE (\texttt{00-1A-2B} above).
+\item \textbf{Last 24 bits = NIC-specific}: a serial number the manufacturer gives each card (\texttt{3C-4D-5E}), so every address is globally unique.
+\item In the first byte, bit b0 (I/G) says \textbf{unicast or multicast} and bit b1 (U/L) says \textbf{globally or locally administered}. The \textbf{broadcast} address is all 1s: \texttt{FF-FF-FF-FF-FF-FF}.
+\item Written \texttt{00-1A-2B-3C-4D-5E} (Windows, see \texttt{ipconfig /all}), \texttt{00:1A:2B:3C:4D:5E} (Linux) or \texttt{001A.2B3C.4D5E} (Cisco).
+\end{enumerate}
+\end{ans}
+\sidenote{MAC = \textbf{physical}, flat, 48 bits, changes nothing when you move. IP = \textbf{logical}, hierarchical, 32 bits, changes with the network. 2025 Q5c asks exactly this.}
+
+\subsection{ARP: from IP address to MAC address}
+\begin{center}
+\begin{tikzpicture}[yscale=0.6]
+  \node[node,fill=peach] (a) at (0,0) {Host A\\{\scriptsize 192.168.1.10}};
+  \node[node,fill=brand,text=white] (b) at (8,0) {Host B\\{\scriptsize 192.168.1.20}};
+  \draw[midgrey,dashed] (0,-0.9) -- (0,-5.6); \draw[midgrey,dashed] (8,-0.9) -- (8,-5.6);
+  \node[lbl,anchor=west,fill=cream,draw=midgrey] at (0.15,-1.5) {1. A checks its ARP cache: no entry for 192.168.1.20};
+  \draw[msg] (0,-2.6) -- node[above,lbl]{2. \textbf{ARP Request} to FF-FF-FF-FF-FF-FF (broadcast): ``Who has .20? Tell .10''} (8,-2.6);
+  \draw[msg] (8,-3.8) -- node[above,lbl]{3. \textbf{ARP Reply} (unicast): ``.20 is at BB-BB-BB-BB-BB-BB''} (0,-3.8);
+  \draw[msg,draw=ink] (0,-5.0) -- node[above,lbl]{4. A caches the mapping and sends the frame to B's MAC} (8,-5.0);
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: ARP. Every host in the LAN hears the request; only the owner of the IP replies.}
+\end{center}
+
+\begin{pastq}{2018 Q3b(iii)}{3}Define the following term: ARP.\end{pastq}
+\begin{ans}
+\textbf{ARP (Address Resolution Protocol)} finds the \textbf{MAC address} that belongs to a known \textbf{IP address} on the local network.
+The sender broadcasts an ARP Request (``who has this IP?''); the owner sends back a unicast ARP Reply with its MAC; the sender stores it in its \textbf{ARP cache} (\texttt{arp -a}) and can now build the frame.
+For a host on another network, ARP asks for the MAC of the \textbf{default gateway}. (RARP does the reverse: MAC $\to$ IP.)
+\end{ans}
+
+\subsection{When the destination address is corrupted}
+\begin{center}
+\begin{tikzpicture}
+  \draw[ink,line width=1.6pt] (0,0) -- (11,0);
+  \foreach \x in {0,11}\draw[fill=ink] (\x-0.12,-0.18) rectangle ++(0.24,0.36);
+  \node[note] at (0,-0.5) {terminator}; \node[note] at (11,-0.5) {terminator};
+  \foreach \n/\x in {A/1.5,B/4.2,C/6.9,D/9.6}{\node[hostn,fill=cream] (\n) at (\x,1) {\n}; \draw[link] (\n) -- (\x,0);}
+  \node[lbl,anchor=north] at (1.5,-0.15) {sends frame\\to C};
+  \foreach \x in {4.2,6.9,9.6}\node[lbl,text=hardc,anchor=north] at (\x,-0.15) {dest $\neq$ me \textit{or}\\FCS fails $\Rightarrow$ drop};
+  \draw[msg] (2.0,0.25) -- (10.6,0.25);
+  \node[lbl,text=brand] at (5.5,1.65) {frame with a corrupted destination MAC reaches every station};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: on a bus every station sees the frame, but nobody accepts it.}
+\end{center}
+
+\begin{pastq}{2025 Q5b(i) \textnormal{/} Q5b(ii)}{3+3}Suppose a computer sends a frame to another computer on a bus topology LAN. The physical destination address of the frame is corrupted during the transmission: (i) Explain what happens to the frame? (ii) Explain how can the sender be informed about the situation?\end{pastq}
+\begin{ans}
+\textbf{(i)} On a bus the frame travels to \textbf{every station}. Each NIC compares the destination MAC with its own.
+The intended receiver sees an address that is not its own, so it \textbf{ignores the frame}.
+Even if the corrupted address matches another station, that station recalculates the CRC; the FCS covers the address field, so the \textbf{CRC check fails and the frame is discarded}.
+The frame is lost and is absorbed by the terminators at the ends of the bus.
+
+\textbf{(ii)} Ethernet sends \textbf{no error message} for a discarded frame, and the sender saw no collision, so Layer 2 thinks it succeeded.
+The sender finds out \textbf{indirectly}: no \textbf{acknowledgement} comes back. In an ARQ protocol (stop-and-wait, sliding window in LLC) or in TCP at Layer 4, the sender's \textbf{timer expires}, it assumes the frame was lost and \textbf{retransmits} it. (A NAK can only be sent if the receiver recognises the frame as damaged and its own.)
+\end{ans}
+
+%=====================================================================
+\section{Channel allocation and ALOHA}
+
+When many stations share one channel, the MAC sub-layer must allocate it.
+\begin{itemize}
+\item \textbf{Static allocation} (FDM, TDM): each user gets a fixed share. Wasteful for bursty LAN traffic, because idle shares are lost.
+\item \textbf{Dynamic allocation}: \textbf{random access} (ALOHA, CSMA, CSMA/CD, CSMA/CA), \textbf{controlled access} (reservation, polling, token passing) or \textbf{channelisation} (FDMA, TDMA, CDMA).
+\end{itemize}
+
+\subsection{Pure and slotted ALOHA}
+ALOHA was built at the University of Hawaii (1970) to link islands by radio. It is the simplest random-access protocol.
+\begin{itemize}
+\item \textbf{Pure ALOHA}: send whenever you have a frame, with no carrier sense. Wait for an ACK; no ACK in time = collision, so wait a \textbf{random back-off} and send again.
+\item \textbf{Slotted ALOHA}: time is divided into \textbf{slots of one frame time} $T_{fr}$; stations may only start at the \textbf{beginning of a slot} (needs clock synchronisation). A frame collides only with frames in the same slot.
+\end{itemize}
+
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=0.85cm]
+  \node[font=\small\bfseries,anchor=west] at (-1.6,0.55) {Pure ALOHA};
+  \foreach \s/\y in {A/0,B/-0.6,C/-1.2}{\node[lbl,anchor=east] at (-0.2,\y) {Station \s}; \draw[midgrey] (0,\y) -- (11.5,\y);}
+  \draw[fill=peach] (0.2,-0.2) rectangle (1.4,0.2) node[midway,font=\scriptsize]{A1};
+  \draw[fill=hardc!60] (2.0,-0.8) rectangle (3.2,-0.4) node[midway,font=\scriptsize]{B1};
+  \draw[fill=hardc!60] (2.6,-1.4) rectangle (3.8,-1.0) node[midway,font=\scriptsize]{C1};
+  \draw[fill=peach] (5.0,-0.2) rectangle (6.2,0.2) node[midway,font=\scriptsize]{A2};
+  \draw[fill=peach] (7.4,-0.8) rectangle (8.6,-0.4) node[midway,font=\scriptsize]{B2};
+  \draw[fill=peach] (9.6,-1.4) rectangle (10.8,-1.0) node[midway,font=\scriptsize]{C2};
+  \node[lbl,text=hardc,anchor=west] at (3.9,-1.2) {collision: B1 and C1 both lost};
+  \draw[decorate,decoration={brace,mirror,amplitude=4pt},brand] (0.8,-1.55) -- (3.2,-1.55)
+     node[midway,below=4pt,lbl,text=brand]{vulnerable time of B1 = $2T_{fr}$};
+  \draw[->] (0,-2.3) -- (11.6,-2.3) node[right,lbl]{time};
+  % slotted
+  \begin{scope}[yshift=-3.15cm]
+  \node[font=\small\bfseries,anchor=west] at (-1.6,0.85) {Slotted ALOHA};
+  \foreach \k in {0,...,9}{\draw[midgrey!60,densely dotted] (\k*1.2,0.35) -- (\k*1.2,-1.45);
+     \pgfmathtruncatemacro{\sl}{\k+1}\node[font=\tiny,text=midgrey] at (\k*1.2+0.6,0.4) {slot \sl};}
+  \foreach \s/\y in {A/0,B/-0.6,C/-1.2}{\node[lbl,anchor=east] at (-0.2,\y) {Station \s}; \draw[midgrey] (0,\y) -- (11.5,\y);}
+  \draw[fill=peach] (0,-0.2) rectangle (1.2,0.2) node[midway,font=\scriptsize]{A1};
+  \draw[fill=hardc!60] (2.4,-0.8) rectangle (3.6,-0.4) node[midway,font=\scriptsize]{B1};
+  \draw[fill=hardc!60] (2.4,-1.4) rectangle (3.6,-1.0) node[midway,font=\scriptsize]{C1};
+  \draw[fill=peach] (4.8,-0.2) rectangle (6.0,0.2) node[midway,font=\scriptsize]{A2};
+  \draw[fill=peach] (6.0,-0.8) rectangle (7.2,-0.4) node[midway,font=\scriptsize]{B2};
+  \draw[fill=peach] (9.6,-1.4) rectangle (10.8,-1.0) node[midway,font=\scriptsize]{C2};
+  \node[lbl,text=hardc,anchor=west] at (3.7,-1.2) {same slot: collide fully};
+  \draw[decorate,decoration={brace,mirror,amplitude=4pt},brand] (2.4,-1.55) -- (3.6,-1.55)
+     node[midway,below=4pt,lbl,text=brand]{vulnerable time = $T_{fr}$};
+  \draw[->] (0,-2.3) -- (11.6,-2.3) node[right,lbl]{time};
+  \end{scope}
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: pure ALOHA frames start at any time and can overlap partly; slotted ALOHA frames start only on slot boundaries. Red = collided.}
+\end{center}
+
+\subsection{Throughput maths}
+$G$ = average number of frames \emph{offered} (new + retransmitted) per frame time. $S$ = average number of \emph{successful} frames per frame time (the throughput).
+\begin{working}[ALOHA throughput]
+\begin{align*}
+P(\text{no other frame in } k \text{ frame times}) &= e^{-kG} && \cmt{Poisson arrivals}\\
+\text{Pure: } S &= G\,e^{-2G} && \cmt{vulnerable $2T_{fr}$: $k=2$}\\
+\frac{dS}{dG} &= e^{-2G}(1-2G) = 0 \Rightarrow G = \tfrac12 && \cmt{maximise}\\
+S_{max} &= \tfrac12 e^{-1} = \tfrac{1}{2e} \approx 0.184 = \mathbf{18.4\%}\\
+\text{Slotted: } S &= G\,e^{-G} && \cmt{vulnerable $T_{fr}$: $k=1$}\\
+\frac{dS}{dG} &= e^{-G}(1-G) = 0 \Rightarrow G = 1\\
+S_{max} &= e^{-1} \approx 0.368 = \mathbf{36.8\%} && \cmt{double pure ALOHA}
+\end{align*}
+\end{working}
+
+\begin{center}
+\begin{tikzpicture}[x=2.8cm,y=7cm]
+  \draw[->] (0,0) -- (3.15,0) node[right,lbl]{$G$ (offered load)};
+  \draw[->] (0,0) -- (0,0.43) node[above,lbl]{$S$};
+  \foreach \g in {0.5,1,2,3}\draw (\g,0) -- (\g,-0.01) node[below,font=\tiny]{\g};
+  \foreach \s in {0.184,0.368}\draw (0,\s) -- (-0.03,\s) node[left,font=\tiny]{\s};
+  \draw[very thick,brand,domain=0:3,samples=90,smooth] plot (\x,{\x*exp(-\x)});
+  \draw[very thick,ink,dashed,domain=0:3,samples=90,smooth] plot (\x,{\x*exp(-2*\x)});
+  \draw[midgrey,densely dotted] (0,0.368) -- (1,0.368) -- (1,0);
+  \draw[midgrey,densely dotted] (0,0.184) -- (0.5,0.184) -- (0.5,0);
+  \node[lbl,text=brand,anchor=west] at (1.45,0.375) {slotted: $S = Ge^{-G}$, max 36.8\% at $G=1$};
+  \node[lbl,anchor=west] at (1.5,0.115) {pure: $S = Ge^{-2G}$, max 18.4\% at $G=0.5$};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: throughput rises with load, peaks, then falls as collisions take over.}
+\end{center}
+
+\begin{working}[Worked example: 200-bit frames on a 200 kbps shared channel]
+\begin{align*}
+T_{fr} &= 200 / 200\,000 = 1 \text{ ms} && \cmt{so 1000 frame times per second}\\
+\text{1000 frames/s} &\Rightarrow G = 1 && \cmt{offered load}\\
+\text{pure } S &= 1\cdot e^{-2} = 0.135 \Rightarrow \mathbf{135} \text{ frames/s survive}\\
+\text{slotted } S &= 1\cdot e^{-1} = 0.368 \Rightarrow \mathbf{368} \text{ frames/s} && \cmt{slotted at its peak}\\
+\text{500 frames/s} &\Rightarrow G = 0.5:\ \text{pure } S = 0.5e^{-1} = 0.184 \Rightarrow \mathbf{92} && \cmt{pure at its peak}
+\end{align*}
+\end{working}
+
+\begin{pastq}{ISA2024 Q4c(i) \textnormal{/} Q4c(ii)}{4+4}In the Aloha system, the basic idea is applicable to any system in which uncoordinated users are competing for the use of a single shared channel. Explain using a diagram the functionality of: (i) Pure Aloha (ii) Slotted Aloha.\end{pastq}
+\begin{ans}
+Draw the two timelines above (A1, B1/C1 collision, slots).
+
+\textbf{(i) Pure ALOHA}
+\begin{enumerate}
+\item A station \textbf{transmits whenever it has a frame}; there is no carrier sensing and no time slots.
+\item It waits for an \textbf{ACK} for a time-out of $2\times$ the maximum propagation delay. No ACK $\Rightarrow$ the frame collided.
+\item After a collision it waits a \textbf{random back-off} time and retransmits (random, so the colliding stations do not collide again).
+\item Any overlap destroys both frames, so the \textbf{vulnerable time is $2T_{fr}$} and the \textbf{maximum throughput is 18.4\%} ($S = Ge^{-2G}$ at $G = 0.5$).
+\end{enumerate}
+\textbf{(ii) Slotted ALOHA}
+\begin{enumerate}
+\item Time is divided into \textbf{slots equal to one frame time}; all stations are synchronised to a clock.
+\item A station may send \textbf{only at the start of a slot}; a frame created mid-slot waits for the next slot.
+\item Collisions happen only when two stations pick the \textbf{same slot}; they are then resent after a random number of slots.
+\item The \textbf{vulnerable time halves to $T_{fr}$}, so the \textbf{maximum throughput doubles to 36.8\%} ($S = Ge^{-G}$ at $G = 1$). The price is the need for synchronisation.
+\end{enumerate}
+\end{ans}
+\sidenote{Write both numbers with their formula: 18.4\% $= 1/(2e)$ and 36.8\% $= 1/e$. Examiners love the ``vulnerable time'' phrase.}
+
+%=====================================================================
+\section{CSMA, CSMA/CD and CSMA/CA}
+
+\textbf{CSMA} (Carrier Sense Multiple Access) improves on ALOHA: \textbf{listen before talk}. Collisions still happen because of \textbf{propagation delay}: a station may sense the line idle while another's signal is still on its way.
+\begin{itemize}
+\item \textbf{1-persistent}: sense continuously; send as soon as the line is idle (Ethernet). Many collisions if two are waiting.
+\item \textbf{Non-persistent}: if busy, wait a random time, then sense again. Fewer collisions, more delay.
+\item \textbf{p-persistent} (slotted channels): when idle, send with probability $p$, otherwise wait one slot.
+\end{itemize}
+
+\subsection{CSMA/CD: collision detection (wired Ethernet, IEEE 802.3)}
+\begin{center}
+\begin{tikzpicture}[node distance=5mm]
+  \node[proc,fill=peach] (st) at (0,0) {Station has a frame to send\\attempts $n = 0$};
+  \node[dec] (idle) at (0,-1.55) {Medium idle?\\(carrier sense)};
+  \node[proc] (tx) at (0,-3.1) {Transmit and keep listening\\(collision detect)};
+  \node[dec] (col) at (0,-4.65) {Collision\\detected?};
+  \node[proc,fill=easyc!50] (ok) at (0,-6.15) {\textbf{Success}: frame sent};
+  \node[proc,fill=hardc!30] (jam) at (5.0,-4.65) {Stop; send a 32-bit\\\textbf{JAM} signal};
+  \node[proc] (inc) at (5.0,-3.1) {$n = n + 1$};
+  \node[dec] (lim) at (5.0,-1.55) {$n > 15$ ?};
+  \node[proc,fill=ink,text=white,text width=16mm] (ab) at (8.6,-1.55) {\textbf{Abort}};
+  \node[proc,fill=softpeach,text width=44mm] (bo) at (5.0,0) {Wait back-off $R \times 51.2\,\mu$s\\$R \in [0, 2^{k}-1],\ k=\min(n,10)$};
+  \draw[->,thick] (st) -- (idle);
+  \draw[->,thick] (idle) -- node[right,lbl]{Yes} (tx);
+  \draw[->,thick] (tx) -- (col);
+  \draw[->,thick] (col) -- node[right,lbl]{No} (ok);
+  \draw[->,thick] (col) -- node[above,lbl]{Yes} (jam);
+  \draw[->,thick] (jam) -- (inc);
+  \draw[->,thick] (inc) -- (lim);
+  \draw[->,thick] (lim) -- node[above,lbl]{Yes} (ab);
+  \draw[->,thick] (lim) -- node[right,lbl]{No} (bo);
+  \draw[->,thick] (bo.west) -- ++(-0.9,0) |- (idle.east);
+  \draw[->,thick] (idle.west) -- ++(-0.5,0) node[above,lbl,anchor=south east]{No: wait} |- ($(st.south)!0.5!(idle.north)$);
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: CSMA/CD flowchart (binary exponential back-off, 16 attempts maximum).}
+\end{center}
+
+\begin{working}[Why Ethernet frames are at least 64 bytes]
+\begin{align*}
+T_{fr} &\ge 2\,T_{p} && \cmt{still sending when collision returns}\\
+L_{min} &= \text{bandwidth} \times 2T_{p} = 10 \times 10^{6} \times 51.2 \times 10^{-6} && \cmt{10 Mbps, round trip 51.2\,$\mu$s}\\
+&= 512 \text{ bits} = \mathbf{64 \text{ bytes}}
+\end{align*}
+\end{working}
+
+\begin{pastq}{ISA2024 Q4a \textnormal{/} SE2024 Q2b \textnormal{/} 2018 Q3b(i)}{3--5}With the aid of a supporting diagram, explain the concept of Carrier Sense Multiple Access/Collision Detection mechanism used by Ethernet (CSMA/CD). / In the description of the Ethernet Architecture, explain the function and operation of the CSMA/CD flow control paradigm. / Define CSMA/CD.\end{pastq}
+\begin{ans}
+\textbf{CSMA/CD} (Carrier Sense Multiple Access with Collision Detection) is the MAC method of classic half-duplex Ethernet (IEEE 802.3) that lets many stations share one cable (bus or hub). Draw the flowchart above.
+\begin{enumerate}
+\item \textbf{Carrier sense}: a station listens before sending; if the medium is busy it waits (1-persistent).
+\item \textbf{Multiple access}: when the medium is idle any station may transmit.
+\item \textbf{Collision detection}: while sending it keeps listening; if the signal on the wire differs from what it sent (voltage too high), a collision has occurred.
+\item On a collision it \textbf{stops} and sends a \textbf{jam signal} so every station knows.
+\item It waits a random \textbf{binary exponential back-off}: $R \times$ slot time, $R$ from 0 to $2^k-1$; after 16 failed attempts it gives up.
+\item A frame must be at least \textbf{64 bytes} so the sender is still transmitting when a collision anywhere on the LAN reaches it.
+\end{enumerate}
+In modern \textbf{full-duplex switched} Ethernet there are no collisions, so CSMA/CD is switched off.
+\end{ans}
+\sidenote{For the 3-mark ``define'' (2018) the first three points are enough: listen before, many share, listen while sending and back off.}
+
+\subsection{CSMA/CA: collision avoidance (Wi-Fi, IEEE 802.11)}
+A wireless station \textbf{cannot detect collisions}: its own strong signal drowns weak incoming ones, and of the \textbf{hidden station problem}. So it tries to \textbf{avoid} collisions instead.
+
+\begin{center}
+\begin{tikzpicture}
+  \draw[brand,dashed,thick] (1.6,0) ellipse (3.0 and 0.75);
+  \draw[ink,dashed,thick] (6.4,0) ellipse (3.0 and 0.75);
+  \node[hostn,fill=peach] (A) at (0,0) {A};
+  \node[hostn,fill=cream] (B) at (4,0) {B (AP)};
+  \node[hostn,fill=peach] (C) at (8,0) {C};
+  \node[lbl,text=brand] at (0.3,0.95) {A's range};
+  \node[lbl] at (7.7,0.95) {C's range};
+  \node[lbl,anchor=west,text width=29mm,align=left] at (9.5,0) {A and C both reach B but \textbf{cannot hear each other}: carrier sense fails, frames collide at B};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: the hidden station problem. RTS/CTS solves it because C hears B's CTS.}
+\end{center}
+
+\begin{center}
+\begin{tikzpicture}[x=1.18cm,y=1cm]
+  \foreach \t/\y in {Source A/0,Destination B (AP)/-1.1,Other station\\(hears A)/-2.2,Hidden C\\(hears B only)/-3.3}
+     {\node[lbl,anchor=east,align=right] at (-0.15,\y) {\t}; \draw[midgrey] (0,\y) -- (9.5,\y);}
+  \draw[decorate,decoration={brace,amplitude=3pt}] (0,0.3) -- (1.0,0.3) node[midway,above=3pt,font=\tiny]{DIFS + back-off};
+  \draw[fill=peach] (1.0,-0.25) rectangle (2.0,0.25) node[midway,font=\scriptsize\bfseries]{RTS};
+  \draw[fill=peach] (2.5,-1.35) rectangle (3.5,-0.85) node[midway,font=\scriptsize\bfseries]{CTS};
+  \draw[fill=brand,text=white] (4.0,-0.25) rectangle (7.6,0.25) node[midway,font=\scriptsize\bfseries,text=white]{DATA};
+  \draw[fill=easyc] (8.1,-1.35) rectangle (9.1,-0.85) node[midway,font=\scriptsize\bfseries]{ACK};
+  \foreach \c in {2.25,3.75,7.85}\node[font=\tiny,text=midgrey] at (\c,0.42) {SIFS};
+  \draw[->,midgrey] (2.0,-0.3) -- (2.5,-0.8); \draw[->,midgrey] (3.5,-0.8) -- (4.0,-0.3); \draw[->,midgrey] (7.6,-0.3) -- (8.1,-0.8);
+  \draw[fill=hardc!30] (2.0,-2.35) rectangle (9.1,-2.05) node[midway,font=\scriptsize]{NAV set by RTS: stay quiet};
+  \draw[fill=hardc!30] (3.5,-3.45) rectangle (9.1,-3.15) node[midway,font=\scriptsize]{NAV set by CTS: stay quiet};
+  \draw[->] (0,-3.95) -- (9.6,-3.95) node[right,lbl]{time};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: CSMA/CA with RTS/CTS. Everyone who hears the RTS or the CTS defers (NAV) until the ACK is over.}
+\end{center}
+
+\begin{enumerate}
+\item Sense the channel; when idle, wait a gap called \textbf{DIFS}, then a \textbf{random back-off} (the counter only runs while the channel is idle).
+\item Optionally send a short \textbf{RTS} (Request To Send) with the time needed; the AP answers \textbf{CTS} (Clear To Send). All others set their \textbf{NAV} timer and stay quiet.
+\item Send the DATA; the receiver waits \textbf{SIFS} and returns an \textbf{ACK}. No ACK $\Rightarrow$ assume a collision, double the contention window and retry.
+\end{enumerate}
+
+\begin{pastq}{2018 Q3b(ii)}{3}Define the following term: CSMA/CA.\end{pastq}
+\begin{ans}
+\textbf{CSMA/CA} (Carrier Sense Multiple Access with Collision Avoidance) is the MAC method of wireless LANs (IEEE 802.11).
+A station senses the channel and, when it is idle, waits an inter-frame space (DIFS) plus a random back-off before sending, so that collisions are \textbf{avoided before they happen}.
+It may reserve the channel with \textbf{RTS/CTS} (others defer using the NAV), and every frame must be confirmed by an \textbf{ACK}; no ACK means retransmit.
+\end{ans}
+
+\begin{pastq}{2023 Q4a}{5}Using a table, differentiate CSMA/CD from CSMA/CA.\end{pastq}
+\begin{ans}
+\small
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}p{2.3cm}XX@{}}
+\toprule
+Basis & CSMA/CD & CSMA/CA\\\midrule
+Meaning & Collision \textbf{Detection}: deals with a collision \emph{after} it happens & Collision \textbf{Avoidance}: tries to prevent it \emph{before} it happens\\
+Network & Wired Ethernet, IEEE 802.3 & Wireless LAN (Wi-Fi), IEEE 802.11\\
+Listening & Listens \emph{while} transmitting & Cannot listen while sending; uses waiting times (IFS) and back-off\\
+On collision & Stop, send jam signal, binary exponential back-off & No detection; a missing ACK means retry with a larger window\\
+ACK & No ACK at the MAC layer & Positive ACK for every frame\\
+Extra mechanism & Minimum frame size (64 bytes) & RTS/CTS handshake and NAV (fixes hidden stations)\\
+Efficiency & Low overhead, efficient on cable & More overhead (IFS, RTS/CTS, ACK)\\
+\bottomrule
+\end{tabularx}
+\end{ans}
+\begin{mnemonic}
+\textbf{CD = cable, detect, after.} \ \textbf{CA = air, avoid, before.}
+\end{mnemonic}
+
+%=====================================================================
+\section{Controlled access, IEEE 802 standards and FDDI}
+
+\textbf{Controlled access} removes collisions: \textbf{reservation} (book a slot first), \textbf{polling} (a primary asks each secondary in turn) and \textbf{token passing} (only the holder of a special frame, the token, may send: Token Bus 802.4, Token Ring 802.5, FDDI).
+
+\begin{minipage}[c]{0.58\linewidth}
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Standard} & \textbf{Covers}\\\midrule
+802.1 & Bridging, STP (802.1D), VLANs (802.1Q)\\
+802.2 & LLC sub-layer\\
+802.3 & Ethernet (CSMA/CD)\\
+802.4 & Token Bus\\
+802.5 & Token Ring\\
+802.11 & Wireless LAN, Wi-Fi (CSMA/CA)\\
+802.15 & WPAN: Bluetooth, Zigbee\\
+802.16 & WiMAX (wireless MAN)\\
+\bottomrule
+\end{tabular}
+\end{minipage}\hfill
+\begin{minipage}[c]{0.4\linewidth}
+\centering
+\begin{tikzpicture}
+  \draw[brand,very thick,->] (0,0) ++(90:1.25) arc (90:-250:1.25);
+  \draw[ink,very thick,->] (0,0) ++(90:0.9) arc (90:430:0.9) ;
+  \foreach \a/\n in {45/S1,135/S2,225/S3,315/S4}\node[hostn,fill=cream,minimum width=7mm] at (\a:1.08) {\n};
+  \node[lbl,text=brand] at (0,1.55) {primary ring};
+  \node[lbl] at (0,0) {secondary\\(backup)};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}FDDI: two counter-rotating fibre rings.}
+\end{minipage}
+
+\begin{keydef}{FDDI -- Fibre Distributed Data Interface (ANSI standard, taught with IEEE 802)}
+A \textbf{100 Mbps} token-passing LAN/MAN over \textbf{optical fibre}, built as \textbf{two counter-rotating rings}. Normally only the primary ring carries data; if a cable or station fails, the stations next to the break \textbf{wrap} onto the secondary ring, so the network keeps working (\textbf{fault tolerance}). Ring up to 100 km, up to 500 stations; used as a campus backbone before Gigabit Ethernet.
+\end{keydef}
+
+%=====================================================================
+\section{Error detection and correction}
+
+\begin{itemize}
+\item \textbf{Single-bit error}: only one bit of the data unit changes, e.g.\ \texttt{0100110111} $\to$ \texttt{0\textcolor{hardc}{0}00110111}. Rare in serial links.
+\item \textbf{Burst error}: \textbf{two or more} bits change (not necessarily next to each other). The \textbf{burst length} is from the first to the last corrupted bit. Common, because noise lasts longer than one bit time.
+\item All methods add \textbf{redundant bits}. \textbf{Detection} only says ``something is wrong'' (then ARQ: retransmit). \textbf{Correction} finds and fixes the bit (FEC).
+\end{itemize}
+
+\subsection{Parity: simple (VRC) and two-dimensional (LRC)}
+Add one bit so the number of 1s is \textbf{even} (even parity) or odd. \texttt{1100001} has three 1s, so even parity sends \texttt{1100001\textcolor{brand}{1}}.
+Detects every single-bit error and any \emph{odd} number of errors; it misses two flipped bits.
+\textbf{2-D parity} arranges the data in rows, adds a parity bit to each row \emph{and} a parity row for each column:
+
+\begin{center}\small
+\begin{tabular}{l|c}
+\multicolumn{1}{c|}{\textbf{data (7 bits)}} & \textbf{row parity}\\\hline
+\texttt{1 1 0 0 1 1 1} & \texttt{\textcolor{brand}{1}}\\
+\texttt{1 0 1 1 1 0 1} & \texttt{\textcolor{brand}{1}}\\
+\texttt{0 1 1 1 0 0 1} & \texttt{\textcolor{brand}{0}}\\
+\texttt{0 1 0 1 0 0 1} & \texttt{\textcolor{brand}{1}}\\\hline
+\rowcolor{cream}\texttt{\textcolor{brand}{0 1 0 1 0 1 0}} & \texttt{\textcolor{brand}{1}}
+\end{tabular}\\[2pt]
+{\scriptsize\color{midgrey}Bottom row = column parity. A single flipped bit shows up as one bad row \emph{and} one bad column, which pin-points it.}
+\end{center}
+
+\subsection{CRC: cyclic redundancy check (the strongest)}
+\begin{enumerate}
+\item Sender and receiver agree a \textbf{generator (divisor)} of $n+1$ bits, e.g.\ \texttt{1101} $= x^3+x^2+1$ ($n = 3$).
+\item Append $n$ zeros to the data and divide by the generator using \textbf{modulo-2 division} (XOR, no carries).
+\item The $n$-bit \textbf{remainder is the CRC}; it replaces the zeros. The codeword is now exactly divisible by the generator.
+\item The receiver divides the whole codeword by the same generator: remainder \textbf{0 = accept}, anything else = \textbf{reject}.
+\end{enumerate}
+
+\begin{center}
+\begin{tikzpicture}[x=4.6mm,y=4.6mm]
+  % quotient
+  \bitrow[brand]{3}{1.3}{1,1,1,1,0,1}
+  \node[lbl,anchor=west,text=brand] at (9.3,1.3) {quotient (thrown away)};
+  % divisor and bracket
+  \node[font=\ttfamily\small\bfseries] at (-2.0,0) {1101};
+  \draw (-0.6,-0.55) to[out=60,in=-60] (-0.6,0.6) -- (8.6,0.6);
+  \bitrow{0}{0}{1,0,0,1,0,0}
+  \bitrow[brand]{6}{0}{0,0,0}
+  \node[lbl,anchor=west] at (9.3,0) {data 100100 + three 0s};
+  % step rows: (start col, row y, subtrahend)
+  \bitrow{0}{-1}{1,1,0,1}   \draw (-0.5,-1.55) -- (3.5,-1.55);
+  \bitrow{1}{-2}{1,0,0,0}   \bitrow{1}{-3}{1,1,0,1} \draw (0.5,-3.55) -- (4.5,-3.55);
+  \bitrow{2}{-4}{1,0,1,0}   \bitrow{2}{-5}{1,1,0,1} \draw (1.5,-5.55) -- (5.5,-5.55);
+  \bitrow{3}{-6}{1,1,1,0}   \bitrow{3}{-7}{1,1,0,1} \draw (2.5,-7.55) -- (6.5,-7.55);
+  \bitrow{4}{-8}{0,1,1,0}   \bitrow[midgrey]{4}{-9}{0,0,0,0} \draw (3.5,-9.55) -- (7.5,-9.55);
+  \bitrow{5}{-10}{1,1,0,0}  \bitrow{5}{-11}{1,1,0,1} \draw (4.5,-11.55) -- (8.5,-11.55);
+  \foreach \c in {6,7,8}\node[bitc,text=white,fill=brand,minimum width=4mm,minimum height=4mm] at (\c,-12) {};
+  \bitrow[white]{6}{-12}{0,0,1}
+  % annotations
+  \node[lbl,anchor=west] at (9.3,-1) {1: leading 1 $\Rightarrow$ XOR 1101};
+  \node[lbl,anchor=west] at (9.3,-2) {2: remainder 100, bring down 0};
+  \node[lbl,anchor=west] at (9.3,-4) {3: 1000 $\oplus$ 1101 = 101, bring down 0};
+  \node[lbl,anchor=west] at (9.3,-6) {4: 1010 $\oplus$ 1101 = 111, bring down 0};
+  \node[lbl,anchor=west] at (9.3,-8) {5: 1110 $\oplus$ 1101 = 011, bring down 0};
+  \node[lbl,anchor=west] at (9.3,-9) {\phantom{5: }leading 0 $\Rightarrow$ XOR 0000};
+  \node[lbl,anchor=west] at (9.3,-10) {6: 0110 $\oplus$ 0000 = 110, bring down 0};
+  \node[lbl,anchor=west] at (9.3,-11) {\phantom{6: }1100 $\oplus$ 1101};
+  \node[lbl,anchor=west,text=brand] at (9.3,-12) {\textbf{remainder 001 = CRC}};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: modulo-2 long division of 100100\,000 by 1101. Transmitted codeword = 100100\,\textbf{001}.}
+\end{center}
+
+\begin{working}[Check at the receiver]
+\begin{align*}
+\text{received } 100100\,001 \div 1101 &\Rightarrow \text{remainder } 000 && \cmt{accept}\\
+\text{received } 100\textcolor{hardc}{0}00\,001 \div 1101 &\Rightarrow \text{remainder} \neq 000 && \cmt{one bit flipped: reject}
+\end{align*}
+\end{working}
+\sidenote{Modulo-2 rules: $1\oplus1 = 0$, $1\oplus0 = 1$, no borrows. If the leading bit of the window is 0, XOR with 0000. The CRC always has one bit fewer than the divisor.}
+
+A CRC with an $n$-bit remainder detects \textbf{all single-bit errors}, all odd numbers of errors and \textbf{all bursts of length $\le n$}. Ethernet's FCS is CRC-32.
+
+\subsection{Checksum}
+The data is cut into $k$-bit words which are added in \textbf{1's complement} arithmetic (a carry out of the top is wrapped round and added back). The \textbf{complement of the sum} is sent as the checksum. The receiver adds all words plus the checksum: all 1s (complement = 0) means no error. Used in the IP, TCP and UDP headers.
+\begin{working}[Worked example: two 8-bit words]
+\begin{align*}
+&\ \ \text{10101001} + \text{00111001} && \cmt{169 + 57}\\
+\text{sum} &= \text{11100010} && \cmt{226, no carry out}\\
+\text{checksum} &= \overline{\text{11100010}} = \mathbf{00011101} && \cmt{flip every bit (29)}\\
+\text{receiver: } & \text{10101001} + \text{00111001} + \text{00011101} = \text{11111111} && \cmt{complement = 0, accept}
+\end{align*}
+\end{working}
+
+\begin{pastq}{2023 Q4b}{4}Copy and complete Table 2 (Errors): Type of error | Description | Detection method, for: Single bit, Burst error.\end{pastq}
+\begin{ans}
+\small
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}p{1.9cm}XX@{}}
+\toprule
+Type of error & Description & Detection method\\\midrule
+Single bit & Only \textbf{one bit} of the data unit changes, 0 to 1 or 1 to 0, e.g.\ 00000010 $\to$ 00001010. & \textbf{Parity check} (VRC): one parity bit catches every single-bit error (CRC and checksum also work).\\
+Burst error & \textbf{Two or more bits} change, not necessarily adjacent; length = first to last bad bit. Caused by noise longer than a bit. & \textbf{CRC}: catches all bursts up to the CRC length (also 2-D parity, checksum).\\
+\bottomrule
+\end{tabularx}
+\end{ans}
+
+\begin{pastq}{SE2024 Q3a}{3}Explain any three error detection strategy used to control data transmission.\end{pastq}
+\begin{ans}
+\begin{enumerate}
+\item \textbf{Parity check}: one extra bit makes the count of 1s even (or odd); the receiver recounts and a mismatch means an error. Detects single-bit and odd-numbered errors; 2-D parity also catches many bursts.
+\item \textbf{CRC}: the sender divides the data (with $n$ zeros added) by an agreed generator using modulo-2 division and appends the $n$-bit remainder. The receiver divides again: remainder 0 = no error. Very strong; used in Ethernet.
+\item \textbf{Checksum}: the data words are added in 1's complement and the complement of the sum is sent. The receiver's sum of everything must be all 1s. Used in IP, TCP, UDP.
+\end{enumerate}
+\end{ans}
+
+\subsection{Hamming distance, Hamming code and FEC}
+\textbf{Hamming distance} $d(x,y)$ = number of positions where two equal-length words differ = number of 1s in $x \oplus y$.
+\begin{working}[Hamming distance and what $d_{min}$ buys you]
+\begin{align*}
+d(\text{10101}, \text{11110}) &: \text{10101} \oplus \text{11110} = \text{01011} \Rightarrow d = \mathbf{3}\\
+\text{detect up to } s \text{ errors} &\iff d_{min} \ge s + 1\\
+\text{correct up to } t \text{ errors} &\iff d_{min} \ge 2t + 1 && \cmt{so $d_{min}=3$ corrects 1 error}
+\end{align*}
+\end{working}
+
+\textbf{Hamming code} places $r$ parity bits at positions 1, 2, 4, 8, \dots{} with $2^{r} \ge m + r + 1$ ($m$ = data bits). Each parity bit covers the positions whose binary number contains it: r1 $\to$ 1,3,5,7,9,11; r2 $\to$ 2,3,6,7,10,11; r4 $\to$ 4--7; r8 $\to$ 8--11.
+
+\begin{center}
+\begin{tikzpicture}[x=8.5mm,y=7mm]
+  \foreach \p/\t/\v [count=\k from 0] in {11/d/1,10/d/0,9/d/0,8/r8/1,7/d/1,6/d/1,5/d/0,4/r4/0,3/d/1,2/r2/0,1/r1/1}{
+    \ifnum\pdfstrcmp{\t}{d}=0 \def\fc{white}\else\def\fc{peach}\fi
+    \draw[fill=\fc] (\k,0) rectangle ++(1,1) node[midway,font=\ttfamily\bfseries]{\v};
+    \node[font=\tiny] at (\k+0.5,1.25) {\p};
+    \node[font=\scriptsize,text=midgrey] at (\k+0.5,-0.3) {\t};}
+  \node[lbl,anchor=west,text width=30mm,align=left] at (11.3,0.5) {data 1001101 (7 bits) needs $r = 4$: $2^4 = 16 \ge 12$};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: Hamming(11,7) codeword 10011100101 for data 1001101 (even parity). Peach = parity bits.}
+\end{center}
+
+\begin{working}[Correcting a single-bit error]
+\begin{align*}
+\text{r1} &= \text{parity of bits } 3,5,7,9,11 = 1,0,1,0,1 \Rightarrow 1 && \cmt{three 1s, make it even}\\
+\text{r2} &= \text{bits } 3,6,7,10,11 = 1,1,1,0,1 \Rightarrow 0\\
+\text{r4} &= \text{bits } 5,6,7 = 0,1,1 \Rightarrow 0\\
+\text{r8} &= \text{bits } 9,10,11 = 0,0,1 \Rightarrow 1\\
+\text{received } & 1001\textcolor{hardc}{0}100101 && \cmt{bit 7 flipped}\\
+\text{recheck r8 r4 r2 r1} &= 0111 && \cmt{the syndrome}\\
+0111_2 &= 7 \Rightarrow \text{flip bit 7 back} && \cmt{error found and corrected}
+\end{align*}
+\end{working}
+
+\begin{pastq}{2018 Q1b(a)}{3}Explain the meaning of the following term: Forward error correction (FEC).\end{pastq}
+\begin{ans}
+\textbf{FEC} means the sender adds enough \textbf{redundant bits} (e.g.\ a Hamming or Reed-Solomon code) that the \textbf{receiver can find and correct errors by itself}, without asking for a retransmission.
+It is used when retransmission is impossible or too slow: real-time voice/video, satellite and deep-space links, simplex (one-way) broadcast.
+The opposite is \textbf{ARQ} (Automatic Repeat reQuest): only detect the error and ask for the frame again.
+\end{ans}
+
+\begin{pastq}{2018 Q1b(b)}{3}Explain the meaning of: Hamming distance.\end{pastq}
+\begin{ans}
+The \textbf{Hamming distance} between two codewords of equal length is the \textbf{number of bit positions in which they differ}. Find it by XORing them and counting the 1s: $d(10101, 11110)$: $10101 \oplus 11110 = 01011$, so $d = 3$.
+The \textbf{minimum} Hamming distance of a code sets its power: it detects $s$ errors if $d_{min} \ge s+1$ and corrects $t$ errors if $d_{min} \ge 2t+1$.
+\end{ans}
+
+%=====================================================================
+\section{Flow and error control: stop-and-wait and sliding windows}
+
+\textbf{Flow control} stops a fast sender overrunning a slow receiver. \textbf{Error control} (ARQ) uses sequence numbers, ACKs, timers and retransmission to recover lost or damaged frames.
+
+\begin{center}
+\begin{tikzpicture}[y=0.8cm]
+  \node[node,fill=peach] at (0,0.7) {Sender};
+  \node[node,fill=brand,text=white] at (6,0.7) {Receiver};
+  \draw[midgrey,dashed] (0,0.2) -- (0,-5.5); \draw[midgrey,dashed] (6,0.2) -- (6,-5.5);
+  \draw[msg] (0,0) -- node[above,sloped,lbl]{Frame 0 (keep a copy, start timer)} (6,-0.8);
+  \draw[msg,dashed,draw=ink] (6,-0.8) -- node[above,sloped,lbl]{ACK 1} (0,-1.6);
+  \draw[msg] (0,-1.9) -- node[above,sloped,lbl]{Frame 1} (3,-2.3);
+  \node[text=hardc,font=\large\bfseries] at (3,-2.3) {$\times$};
+  \node[lbl,text=hardc,anchor=west] at (3.2,-2.4) {lost (noise)};
+  \draw[|-|,brand,thick] (-0.35,-1.9) -- node[left,lbl,text=brand]{timer\\runs out} (-0.35,-3.5);
+  \draw[msg] (0,-3.5) -- node[above,sloped,lbl]{Frame 1 (copy resent)} (6,-4.3);
+  \draw[msg,dashed,draw=ink] (6,-4.3) -- node[above,sloped,lbl]{ACK 0} (0,-5.1);
+  \node[lbl,anchor=west] at (6.15,-0.8) {CRC ok $\Rightarrow$ ACK};
+  \node[lbl,anchor=west] at (6.15,-4.3) {CRC ok $\Rightarrow$ ACK};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: stop-and-wait ARQ with a lost frame. Frames and ACKs are numbered 0, 1, 0, 1 \dots{} (ACK = number of the next frame expected).}
+\end{center}
+
+\begin{pastq}{2018 Q4b}{4}Explain the working principle of stop and wait protocol.\end{pastq}
+\begin{ans}
+\begin{enumerate}
+\item The sender transmits \textbf{one frame}, keeps a copy and starts a \textbf{timer}, then \textbf{stops and waits}.
+\item The receiver checks the frame (CRC); if it is good it passes it up and returns an \textbf{ACK}. Only when the ACK arrives does the sender send the next frame (window size = 1).
+\item If the frame or the ACK is lost or damaged, the \textbf{timer expires} and the sender \textbf{retransmits} its copy (stop-and-wait ARQ).
+\item Frames are numbered \textbf{0 and 1 alternately} so the receiver can spot and discard a duplicate. Simple, but the line is idle while waiting, so it is inefficient on long or fast links.
+\end{enumerate}
+\end{ans}
+
+\begin{working}[How inefficient? Link utilisation of stop-and-wait]
+\begin{align*}
+a &= \frac{T_{p}}{T_{fr}} && \cmt{propagation time in frame times}\\
+U &= \frac{T_{fr}}{T_{fr} + 2T_{p}} = \frac{1}{1 + 2a}\\
+\text{1 Mbps, 1000-bit frames: } T_{fr} &= 1 \text{ ms};\ T_{p} = 10 \text{ ms} \Rightarrow a = 10\\
+U &= \tfrac{1}{1+20} \approx \mathbf{4.8\%} && \cmt{idle 95\% of the time}\\
+\text{to fill the pipe, window } W &\ge 1 + 2a = 21 \text{ frames}
+\end{align*}
+\end{working}
+
+\subsection{Sliding window: Go-Back-N and Selective Repeat}
+The sender may send up to $W$ frames before it needs an ACK. With $m$-bit sequence numbers (0 to $2^m - 1$) the window slides forward as ACKs arrive.
+
+\begin{center}
+\begin{tikzpicture}[x=7.5mm,y=7mm]
+  \foreach \n [count=\k from 0] in {0,1,2,3,4,5,6,7,0,1,2,3,4,5,6,7}{
+    \pgfmathsetmacro{\fc}{\k<2 ? "midgrey!50" : (\k<9 ? "softpeach" : "white")}
+    \draw[fill=\fc] (\k,0) rectangle ++(1,1) node[midway,font=\small]{\n};}
+  \draw[brand,very thick,rounded corners=2pt] (2,-0.12) rectangle (9,1.12);
+  \node[lbl] at (1,-0.45) {sent \& ACKed};
+  \node[lbl,text=brand] at (5.5,-0.45) {window $W = 7$: may be sent without waiting};
+  \node[lbl] at (12.5,-0.45) {cannot send yet};
+  \draw[->,brand,thick] (9.2,1.35) -- node[above,lbl,text=brand]{slides right as each ACK arrives} (12,1.35);
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: sender's sliding window with 3-bit sequence numbers (Go-Back-N maximum $W = 2^3 - 1 = 7$).}
+\end{center}
+
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=0.9cm]
+  % ---------- Go-Back-N ----------
+  \node[font=\small\bfseries] at (1.5,1.2) {Go-Back-N};
+  \node[hostn,fill=peach] at (0,0.5) {S}; \node[hostn,fill=brand,text=white] at (3,0.5) {R};
+  \draw[midgrey,dashed] (0,0.15) -- (0,-5.3); \draw[midgrey,dashed] (3,0.15) -- (3,-5.3);
+  \foreach \f/\y/\r in {0/0/F0 ok,1/-0.5/F1 ok,3/-1.5/F3 discard,4/-2.0/F4 discard}{
+    \draw[msg] (0,\y) -- (3,\y-0.8); \node[lbl,anchor=east] at (-0.05,\y) {F\f};
+    \node[lbl,anchor=west] at (3.05,\y-0.8) {\r};}
+  \draw[msg] (0,-1.0) -- (1.5,-1.4); \node[text=hardc,font=\bfseries] at (1.5,-1.4) {$\times$};
+  \node[lbl,anchor=east] at (-0.05,-1.0) {F2};
+  \draw[->,dashed,ink] (3,-0.8) -- (0,-1.6); \draw[->,dashed,ink] (3,-1.3) -- (0,-2.1);
+  \draw[|-|,brand,thick] (-0.6,-1.0) -- node[left,lbl,text=brand]{timeout:\\go back\\to F2} (-0.6,-3.2);
+  \foreach \f/\y in {2/-3.2,3/-3.7,4/-4.2}{
+    \draw[msg,draw=hardc] (0,\y) -- (3,\y-0.8); \node[lbl,anchor=east] at (-0.05,\y) {F\f};
+    \node[lbl,anchor=west] at (3.05,\y-0.8) {F\f{} ok};}
+  % ---------- Selective Repeat ----------
+  \begin{scope}[xshift=7cm]
+  \node[font=\small\bfseries] at (1.5,1.2) {Selective Repeat};
+  \node[hostn,fill=peach] at (0,0.5) {S}; \node[hostn,fill=brand,text=white] at (3,0.5) {R};
+  \draw[midgrey,dashed] (0,0.15) -- (0,-5.3); \draw[midgrey,dashed] (3,0.15) -- (3,-5.3);
+  \foreach \f/\y/\r in {0/0/F0 ok,1/-0.5/F1 ok,3/-1.5/F3 buffered,4/-2.0/F4 buffered}{
+    \draw[msg] (0,\y) -- (3,\y-0.8); \node[lbl,anchor=east] at (-0.05,\y) {F\f};
+    \node[lbl,anchor=west] at (3.05,\y-0.8) {\r};}
+  \draw[msg] (0,-1.0) -- (1.5,-1.4); \node[text=hardc,font=\bfseries] at (1.5,-1.4) {$\times$};
+  \node[lbl,anchor=east] at (-0.05,-1.0) {F2};
+  \draw[->,dashed,ink] (3,-2.3) -- node[pos=0.25,above,lbl]{NAK 2} (0,-3.1);
+  \draw[msg,draw=hardc] (0,-3.2) -- (3,-4.0); \node[lbl,anchor=east] at (-0.05,-3.2) {F2};
+  \node[lbl,anchor=west,align=left] at (3.05,-4.0) {F2 ok: deliver\\2, 3, 4 in order};
+  \end{scope}
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: frame 2 is lost. Go-Back-N resends 2, 3 and 4; Selective Repeat resends only 2. Red = retransmissions.}
+\end{center}
+
+\begin{center}\small
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}p{2.4cm}XXX@{}}
+\toprule
+ & Stop-and-wait & Go-Back-N & Selective Repeat\\\midrule
+Sender window & 1 & up to $2^m - 1$ & up to $2^{m-1}$\\
+Receiver window & 1 & 1 (accepts only in order) & up to $2^{m-1}$ (buffers)\\
+On a lost frame & resend it & resend it \textbf{and all after it} & resend \textbf{only that frame}\\
+Good for & short links & cheap receivers, low error rate & noisy, long links; complex\\
+\bottomrule
+\end{tabularx}
+\end{center}
+\sidenote{Window limits are a favourite trap: GBN $2^m - 1$, SR $2^{m-1}$. With $m = 3$: GBN 7, SR 4.}
+
+\begin{pastq}{2018 Q1b(c)}{3}Explain the meaning of: Piggybacking.\end{pastq}
+\begin{center}
+\begin{tikzpicture}[y=0.75cm]
+  \node[hostn,fill=peach] at (0,0.55) {Station A}; \node[hostn,fill=brand,text=white] at (6,0.55) {Station B};
+  \draw[midgrey,dashed] (0,0.2) -- (0,-3.6); \draw[midgrey,dashed] (6,0.2) -- (6,-3.6);
+  \draw[msg] (0,0) -- node[above,sloped,lbl]{data A0} (6,-0.7);
+  \draw[msg,draw=ink] (6,-0.9) -- node[above,sloped,lbl]{data B0 \textbf{+ ACK 1}} (0,-1.6);
+  \draw[msg] (0,-1.8) -- node[above,sloped,lbl]{data A1 \textbf{+ ACK 1}} (6,-2.5);
+  \draw[msg,draw=ink] (6,-2.7) -- node[above,sloped,lbl]{data B1 \textbf{+ ACK 2}} (0,-3.4);
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: the ACK rides in the header of the next data frame going the other way.}
+\end{center}
+\begin{ans}
+In \textbf{two-way (full-duplex)} communication the receiver does not send a separate ACK frame; it \textbf{attaches the acknowledgement to its next outgoing data frame} (an ACK field in the header).
+\textbf{Advantage}: fewer frames, so better use of bandwidth and less overhead.
+\textbf{Disadvantage}: if the station has no data to send the ACK is delayed, so an ACK timer forces a separate ACK when it runs out.
+\end{ans}
+
+%=====================================================================
+\section{LAN devices: repeater, hub, bridge, switch, router}
+
+\begin{center}\small
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}lcXcc@{}}
+\toprule
+Device & Layer & What it does & Collision domains & Broadcast domains\\\midrule
+Repeater & 1 & Regenerates the signal bit by bit to extend distance & 1 (shared) & 1\\
+Hub & 1 & Multiport repeater: copies every bit to every port & 1 (shared) & 1\\
+Bridge & 2 & Filters/forwards frames between segments by MAC address & 1 per port & 1\\
+Switch & 2 & Multiport bridge in hardware; full duplex per port & 1 per port & 1 (per VLAN)\\
+Router & 3 & Forwards packets between networks by IP address & 1 per port & 1 per interface\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{center}
+\begin{tikzpicture}
+  % hub panel
+  \node[font=\small\bfseries] at (2.5,0.95) {Hub (Layer 1)};
+  \node[hubn] (hub) at (2.5,0) {Hub};
+  \foreach \i/\x in {1/0.5,2/1.85,3/3.15,4/4.5}{\node[hostn] (h\i) at (\x,-1.4) {PC}; \draw[link] (hub) -- (h\i);}
+  \draw[brand,very thick,dashed,rounded corners=8pt] (-0.1,0.55) rectangle (5.1,-1.95);
+  \node[lbl] at (2.5,-2.3) {\textcolor{brand}{\textbf{1} collision domain}, \textbf{1} broadcast domain};
+  % switch panel
+  \node[font=\small\bfseries] at (9.5,0.95) {Switch (Layer 2)};
+  \node[switchn] (sw) at (9.5,0) {Switch};
+  \foreach \i/\x in {1/7.5,2/8.85,3/10.15,4/11.5}{\node[hostn] (s\i) at (\x,-1.4) {PC}; \draw[link] (sw) -- (s\i);
+     \draw[brand,thick,dashed] (\x,-1.05) ellipse (0.55 and 0.75);}
+  \draw[ink,thick,densely dotted,rounded corners=8pt] (6.8,0.55) rectangle (12.2,-1.95);
+  \node[lbl] at (9.5,-2.3) {\textcolor{brand}{\textbf{4} collision domains}, \textbf{1} broadcast domain};
+  % router panel
+  \node[font=\small\bfseries] at (6,-2.95) {Router (Layer 3)};
+  \node[routern] (r) at (6,-3.75) {Router};
+  \node[switchn] (w1) at (3,-4.7) {Switch};
+  \node[switchn] (w2) at (9,-4.7) {Switch};
+  \draw[link] (r) -- (w1); \draw[link] (r) -- (w2);
+  \foreach \x/\w in {2/w1,4/w1,8/w2,10/w2}{\node[hostn] (q\x) at (\x,-5.9) {PC}; \draw[link] (\w) -- (q\x);}
+  \draw[ink,thick,densely dotted,rounded corners=8pt] (1.2,-4.25) rectangle (4.8,-6.4);
+  \draw[ink,thick,densely dotted,rounded corners=8pt] (7.2,-4.25) rectangle (10.8,-6.4);
+  \node[lbl,anchor=west] at (-0.2,-6.75) {broadcast domain 1};
+  \node[lbl,anchor=east] at (12.2,-6.75) {broadcast domain 2};
+  \node[lbl] at (6,-6.0) {router blocks\\broadcasts};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: dashed orange = collision domain, dotted grey = broadcast domain. Switches split collision domains; routers split broadcast domains.}
+\end{center}
+
+\subsection{How a bridge (and a switch) learns}
+\sidenote{Bridges learn from the \textbf{source} address and forward on the \textbf{destination} address. Mixing these up loses the mark.}
+\begin{center}
+\begin{tikzpicture}
+  \draw[ink,line width=1.4pt] (0,0) -- (4,0); \draw[ink,line width=1.4pt] (7,0) -- (11,0);
+  \foreach \n/\x in {A/1,B/3}{\node[hostn,fill=cream] (\n) at (\x,0.9) {\n}; \draw[link] (\n) -- (\x,0);}
+  \foreach \n/\x in {C/8,D/10}{\node[hostn,fill=cream] (\n) at (\x,0.9) {\n}; \draw[link] (\n) -- (\x,0);}
+  \node[switchn,minimum width=18mm] (br) at (5.5,0) {BRIDGE};
+  \draw[link] (4,0) -- (br.west); \draw[link] (br.east) -- (7,0);
+  \node[font=\tiny,anchor=south east] at (br.north west) {port 1};
+  \node[font=\tiny,anchor=south west] at (br.north east) {port 2};
+  \node[lbl] at (2,-0.45) {segment 1 (collision domain 1)};
+  \node[lbl] at (9,-0.45) {segment 2 (collision domain 2)};
+  \node[lbl,text=hardc] at (2,1.6) {A $\to$ B: \textbf{filtered}};
+  \node[lbl,text=brand] at (9,1.6) {A $\to$ C: \textbf{forwarded} to port 2};
+  \node[draw=midgrey,fill=white,font=\scriptsize,inner sep=2pt] at (5.5,-1.75) {%
+     \begin{tabular}{@{}lc@{}}\rowcolor{cream}\textbf{MAC address} & \textbf{Port}\\
+     A\ \ 00-1A-2B-00-00-01 & 1\\ B\ \ 00-1A-2B-00-00-02 & 1\\ C\ \ 00-1A-2B-00-00-03 & 2\\ D\ \ 00-1A-2B-00-00-04 & 2\end{tabular}};
+  \node[lbl,anchor=west,align=left] at (8.0,-1.75) {\textbf{learn} source MAC + port\\\textbf{filter} if same port\\\textbf{forward} if known elsewhere\\\textbf{flood} if unknown / broadcast};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: a transparent (learning) bridge and its MAC table.}
+\end{center}
+
+\begin{pastq}{2025 Q4c}{7}Describe the function of a network bridge and how it operates in a Data Link Layer switching environment.\end{pastq}
+\begin{ans}
+A \textbf{bridge} is a \textbf{Layer 2} device that joins two or more LAN segments and \textbf{filters and forwards frames using MAC addresses}. Each segment becomes its \textbf{own collision domain}, but the whole network stays \textbf{one broadcast domain}. Draw the figure above.
+\begin{enumerate}
+\item \textbf{Learning}: for each arriving frame it records the \textbf{source MAC} and the port it came in on, building its MAC (forwarding) table automatically (transparent bridge, no set-up).
+\item \textbf{Filtering}: if the destination is on the \textbf{same port} the frame came from, it is dropped, so local traffic stays local.
+\item \textbf{Forwarding}: if the destination is known on another port, the frame goes \textbf{only to that port}.
+\item \textbf{Flooding}: unknown destinations, broadcasts and multicasts go out of every port except the incoming one.
+\item \textbf{Ageing}: entries time out (about 300 s) so moved hosts are relearned.
+\item \textbf{Loop prevention}: with redundant bridges, the \textbf{Spanning Tree Protocol} (STP, IEEE 802.1D) blocks some ports so frames cannot loop forever.
+\item It checks the FCS and drops bad frames, and can join segments of different speeds. A \textbf{switch} is a multiport bridge doing all this in hardware (ASICs) at wire speed.
+\end{enumerate}
+\end{ans}
+
+\begin{pastq}{SE2024 Q1b(ii)}{2}Explain the functional difference between a Repeater and Bridge.\end{pastq}
+\begin{ans}
+A \textbf{repeater} (Layer 1) only \textbf{regenerates and re-times the signal} bit by bit to extend cable distance; it does not read addresses and passes on everything, collisions included (one collision domain).
+A \textbf{bridge} (Layer 2) \textbf{reads MAC addresses} and filters or forwards frames between segments, cutting traffic and \textbf{separating collision domains}.
+\end{ans}
+
+\begin{pastq}{SE2024 Q4f}{5}Differentiate between Hub \& switch on the basis of layer, ports, device type, speed.\end{pastq}
+\begin{ans}
+\small
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}p{2.1cm}XX@{}}
+\toprule
+Basis & Hub & Switch\\\midrule
+Layer & Layer 1, Physical & Layer 2, Data link (Layer 3 switches exist)\\
+Ports & Typically 4--12; all ports share \textbf{one collision domain} & 8--48; \textbf{each port is its own collision domain}\\
+Device type & Passive, ``dumb'' multiport repeater: sends every frame out of every port & Active, intelligent: uses a MAC table to send a frame only to the destination port\\
+Speed & Shared bandwidth (e.g.\ 10/100 Mbps split among all), half duplex & Dedicated bandwidth per port (100 Mbps--10 Gbps), full duplex\\
+Addressing / security & No addresses; anyone can sniff all traffic; many collisions & MAC addresses; traffic goes only where needed; no collisions in full duplex\\
+\bottomrule
+\end{tabularx}
+\end{ans}
+
+\begin{pastq}{2018 Q5d}{3}Explain why a switch is said to be intelligent.\end{pastq}
+\begin{ans}
+\begin{enumerate}
+\item It \textbf{learns} the MAC addresses on each port and builds a MAC address table by itself.
+\item It \textbf{makes a forwarding decision} for every frame: sends it only to the destination port and filters local traffic, instead of copying it everywhere like a hub.
+\item It checks frames for errors (store-and-forward) and supports VLANs, full duplex, QoS, port security and STP; managed switches can be configured and monitored.
+\end{enumerate}
+\end{ans}
+
+\begin{pastq}{2025 Q5d}{10}Discuss the purpose of a router and a switch in a network. Which OSI layers do they operate on, and what is the difference between them in terms of functionality?\end{pastq}
+\begin{ans}
+\textbf{Switch}: connects end devices \textbf{within one LAN} and moves frames between them. Works at \textbf{Layer 2 (data link)}; a multilayer switch can also route at Layer 3.
+\textbf{Router}: connects \textbf{different networks} (LAN to LAN, LAN to WAN/Internet) and chooses the best path for packets. Works at \textbf{Layer 3 (network)}.
+
+\small
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}p{2.3cm}XX@{}}
+\toprule
+Basis & Switch & Router\\\midrule
+Address used & MAC addresses; MAC address table & IP addresses; routing table\\
+Data unit & Frames & Packets\\
+Decision & Forwards a frame to the correct port (learn, filter, forward, flood) & Finds the best path using static routes or routing protocols (RIP, OSPF, EIGRP)\\
+Broadcasts & Forwards broadcasts: one broadcast domain (unless VLANs) & Blocks broadcasts: each interface is a separate broadcast domain\\
+Collision domains & One per port & One per port\\
+Extra features & VLANs, STP, port security, PoE & NAT, DHCP, ACLs/firewall, VPN, WAN interfaces\\
+Speed & Very fast, hardware (ASIC) switching & Slower: must read and rewrite the Layer 3 header, decrement TTL\\
+Example & Lab switch joining 24 PCs & Router joining the campus LAN to the ISP\\
+\bottomrule
+\end{tabularx}
+\end{ans}
+\sidenote{For 10 marks: purpose of each (2+2), layers (2), then at least four rows of differences. Draw the hub/switch/router picture if you have time.}
+
+%=====================================================================
+\section{VLANs and network segmentation}
+
+A \textbf{VLAN} (Virtual LAN) is a \textbf{logical group of switch ports that forms its own broadcast domain}, whatever the physical location of the devices. It is set in software on the switch. Frames between switches carry an \textbf{IEEE 802.1Q tag} on a \textbf{trunk} link; traffic between VLANs must go through a \textbf{router} or Layer 3 switch.
+
+\begin{center}
+\begin{tikzpicture}
+  \node[routern] (r) at (3,0.2) {Router};
+  \node[switchn] (s1) at (3,-1.5) {Switch 1};
+  \node[switchn] (s2) at (9,-1.5) {Switch 2};
+  \draw[ink,line width=2.4pt] (r) -- node[right,lbl]{trunk: sub-interfaces .10 and .20} (s1);
+  \draw[ink,line width=2.4pt] (s1) -- node[above,lbl]{802.1Q trunk (carries VLAN 10 + 20)} (s2);
+  \foreach \x/\v/\s [count=\i] in {1.2/10/s1,2.4/20/s1,3.6/10/s1,4.8/20/s1,7.2/10/s2,8.4/20/s2,9.6/20/s2,10.8/10/s2}{
+    \ifnum\v=10 \def\fc{peach}\def\lc{peach}\else\def\fc{brand!70}\def\lc{brand}\fi
+    \node[hostn,fill=\fc] (p\i) at (\x,-3.0) {V\v};
+    \draw[\lc,very thick] (\s) -- (p\i);}
+  \node[hostn,fill=peach] at (1.4,-4.0) {}; \node[lbl,anchor=west] at (2.05,-4.0) {VLAN 10 Sales (192.168.10.0/24)};
+  \node[hostn,fill=brand!70] at (7.0,-4.0) {}; \node[lbl,anchor=west] at (7.65,-4.0) {VLAN 20 HR (192.168.20.0/24)};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: two VLANs spread over two switches. A broadcast from a VLAN 10 PC reaches only VLAN 10 PCs; VLAN 10 to VLAN 20 goes via the router (``router on a stick'').}
+\end{center}
+
+\begin{center}
+\begin{tikzpicture}[y=7mm]
+  \draw[fill=peach] (0,0) rectangle (2.2,1) node[midway,font=\scriptsize]{Dest MAC};
+  \draw[fill=peach] (2.2,0) rectangle (4.4,1) node[midway,font=\scriptsize]{Src MAC};
+  \draw[fill=brand,text=white] (4.4,0) rectangle (7.4,1) node[midway,font=\scriptsize\bfseries,text=white]{802.1Q tag (4 B)};
+  \draw[fill=easyc!40] (7.4,0) rectangle (8.6,1) node[midway,font=\scriptsize]{Type};
+  \draw[fill=white] (8.6,0) rectangle (11.6,1) node[midway,font=\scriptsize]{Data};
+  \draw[fill=cream] (11.6,0) rectangle (12.6,1) node[midway,font=\scriptsize]{FCS};
+  \draw[decorate,decoration={brace,mirror,amplitude=4pt}] (4.4,-0.1) -- (7.4,-0.1)
+     node[midway,below=5pt,lbl]{TPID 0x8100 \textbullet{} priority (3 bits) \textbullet{} DEI \textbullet{} \textbf{VLAN ID (12 bits)}};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: the 802.1Q tag is inserted after the source MAC. 12-bit VLAN ID gives up to 4094 VLANs.}
+\end{center}
+
+\begin{pastq}{2018 Q5c}{4}Define the term VLAN giving its uses in your answer.\end{pastq}
+\begin{ans}
+A \textbf{VLAN} is a logical grouping of devices on one or more switches into a \textbf{separate broadcast domain}, configured in software (IEEE 802.1Q), regardless of where the devices physically are.
+\textbf{Uses:}
+\begin{enumerate}
+\item \textbf{Group departments} (Accounts, HR, IT) on shared switches as if they had their own LAN.
+\item \textbf{Security}: sensitive traffic is isolated; other VLANs can reach it only through a router with ACLs.
+\item \textbf{Performance}: smaller broadcast domains mean less broadcast traffic.
+\item \textbf{Flexibility}: move a user by changing the port's VLAN, not the cabling; separate voice and data (voice VLAN with QoS).
+\end{enumerate}
+\end{ans}
+
+\begin{pastq}{ISA2024 Q1b}{6}Explain the concept of network segmentation.\end{pastq}
+\begin{ans}
+\textbf{Network segmentation} divides one large network into smaller \textbf{segments}, each with its own traffic and access rules, using switches/bridges (collision domains), \textbf{VLANs} and \textbf{subnets} with routers (broadcast domains), and firewalls (security zones such as a DMZ).
+\begin{enumerate}
+\item \textbf{Performance}: fewer devices share each collision and broadcast domain, so less congestion.
+\item \textbf{Security}: an attack or malware is contained in one segment; it limits lateral movement; access control lists or firewalls filter traffic between zones.
+\item \textbf{Management and troubleshooting}: faults stay inside one segment; the network is organised by department, floor or function.
+\item \textbf{Compliance}: sensitive data (e.g.\ payment or HR systems) is kept in its own zone and can be audited.
+\end{enumerate}
+\end{ans}
+\sidenote{Segmentation is in the T05 bank list but is answered with Layer 2 ideas (switches, VLANs) and Layer 3 ideas (subnets). Mention both.}
+
+%=====================================================================
+\section{Practice questions}
+\setcounter{pq}{0}
+
+\begin{practice}{easy}{3}A NIC has the MAC address 3C-A8-2A-11-05-FF. (a) Which part is the OUI? (b) Is it unicast or multicast? (c) Write the broadcast MAC address.
+\sol (a) OUI = \texttt{3C-A8-2A} (first 24 bits); NIC-specific part = \texttt{11-05-FF}.
+(b) First byte \texttt{3C} = \texttt{0011\,1100}: bit b0 = 0, so \textbf{unicast} (and b1 = 0, globally administered).
+(c) \texttt{FF-FF-FF-FF-FF-FF}.
+\end{practice}
+
+\begin{practice}{easy}{2}Find the even and the odd parity bit for the data \texttt{1011001}.
+\sol There are four 1s. Even parity: bit = \textbf{0} (sent \texttt{10110010}). Odd parity: bit = \textbf{1} (sent \texttt{10110011}).
+\end{practice}
+
+\begin{practice}{easy}{4}Give the IEEE 802 standard number for: (a) Ethernet (b) Wi-Fi (c) VLAN tagging (d) the LLC sub-layer.
+\sol (a) 802.3 \ (b) 802.11 \ (c) 802.1Q \ (d) 802.2.
+\end{practice}
+
+\begin{practice}{easy}{3}State the vulnerable time and the maximum throughput of pure ALOHA and of slotted ALOHA.
+\sol Pure: vulnerable time $2T_{fr}$, max throughput $1/(2e) = 18.4\%$ at $G = 0.5$.
+Slotted: vulnerable time $T_{fr}$, max throughput $1/e = 36.8\%$ at $G = 1$.
+\end{practice}
+
+\begin{practice}{medium}{4}Find the Hamming distance between \texttt{1011101} and \texttt{1001001}. What minimum Hamming distance must a code have to detect 3 errors? To correct 2 errors?
+\sol
+\begin{working}
+\begin{align*}
+\text{1011101} \oplus \text{1001001} &= \text{0010100} \Rightarrow d = \mathbf{2} && \cmt{count the 1s}\\
+\text{detect } s = 3 &: d_{min} = s + 1 = \mathbf{4}\\
+\text{correct } t = 2 &: d_{min} = 2t + 1 = \mathbf{5}
+\end{align*}
+\end{working}
+\end{practice}
+
+\begin{practice}{medium}{5}Compute the 8-bit checksum for the words \texttt{11001100} and \texttt{10101010}, and show how the receiver checks it.
+\sol
+\begin{working}
+\begin{align*}
+\text{11001100} + \text{10101010} &= \text{1\,01110110} && \cmt{204 + 170 = 374: carry out}\\
+\text{wrap the carry: } \text{01110110} + 1 &= \text{01110111} && \cmt{1's complement (119)}\\
+\text{checksum} &= \overline{\text{01110111}} = \mathbf{10001000} && \cmt{136}\\
+\text{receiver: } 204 + 170 + 136 &= 510 = \text{1\,11111110} && \cmt{carry out again}\\
+\text{11111110} + 1 &= \text{11111111} && \cmt{all 1s: accept}
+\end{align*}
+\end{working}
+\end{practice}
+
+\begin{practice}{medium}{5}A group of stations shares a 200 kbps channel using 200-bit frames. Together they offer 500 frames per second. Find the throughput (frames/s) with pure ALOHA and with slotted ALOHA.
+\sol
+\begin{working}
+\begin{align*}
+T_{fr} &= 200/200\,000 = 1 \text{ ms} \Rightarrow G = 500 \times 0.001 = 0.5 && \cmt{frames per frame time}\\
+\text{pure } S &= 0.5\,e^{-1} = 0.184 \Rightarrow 0.184 \times 1000 \approx \mathbf{92} \text{ frames/s}\\
+\text{slotted } S &= 0.5\,e^{-0.5} = 0.303 \Rightarrow \approx \mathbf{151} \text{ frames/s} && \cmt{1000 slots per second}
+\end{align*}
+\end{working}
+\end{practice}
+
+\begin{practice}{medium}{6}Explain why the data link layer needs framing, describe two framing methods, and bit-stuff the data \texttt{0111111011111100}.
+\sol Framing lets the receiver find where each frame \textbf{starts and ends} in the bit stream, so it can check the CRC and pass whole frames up.
+(1) \textbf{Byte stuffing}: frames are delimited by FLAG bytes; any FLAG or ESC byte in the data gets an ESC byte in front. (2) \textbf{Bit stuffing}: the flag is \texttt{01111110}; after five consecutive 1s in the data the sender inserts a 0, which the receiver removes.
+\begin{working}
+\begin{align*}
+\text{0 11111 1 0 11111 1 00} &\to \text{0 11111\textcolor{brand}{0} 1 0 11111\textcolor{brand}{0} 1 00} && \cmt{a 0 after every five 1s}\\
+&= \mathbf{011111010111110100} && \cmt{16 bits become 18}
+\end{align*}
+\end{working}
+\end{practice}
+
+\begin{practice}{hard}{12}Data \texttt{110101} is sent using CRC with the generator $x^3 + x + 1$. (a) Find the transmitted codeword. (b) Show that the receiver accepts it. (c) The 4th bit is flipped on the way. Show that the error is detected. (d) Which errors does this CRC always detect?
+\sol
+\begin{working}
+\begin{align*}
+x^3 + x + 1 &= \text{1011} \Rightarrow n = 3, \text{ append 000: } \text{110101\,000} && \cmt{divisor has $n+1$ bits}\\
+\text{1101} \oplus \text{1011} &= \text{0110} \to \text{110}, \text{ bring down 0} \to \text{1100}\\
+\text{1100} \oplus \text{1011} &= \text{111}, \text{ bring down 1} \to \text{1111}\\
+\text{1111} \oplus \text{1011} &= \text{100}, \text{ bring down 0} \to \text{1000}\\
+\text{1000} \oplus \text{1011} &= \text{011}, \text{ bring down 0} \to \text{0110} && \cmt{leading 0: XOR 0000}\\
+\text{0110} \oplus \text{0000} &= \text{110}, \text{ bring down 0} \to \text{1100}\\
+\text{1100} \oplus \text{1011} &= \mathbf{111} = \text{CRC} && \cmt{quotient 111101}
+\end{align*}
+\end{working}
+(a) Codeword = \textbf{110101\,111}.
+(b) 110101111 $\div$ 1011 gives remainder \textbf{000}, so it is accepted.
+(c) Received 110\textcolor{hardc}{0}01111 $\div$ 1011 gives remainder \textbf{111} $\neq 0$, so the frame is rejected and (with ARQ) retransmitted.
+(d) A 3-bit CRC whose generator has more than one term detects \textbf{all single-bit errors}; since $x^3+x+1$ has a constant term it detects \textbf{all bursts of length $\le 3$}. It misses errors that are themselves a multiple of the generator.
+\end{practice}
+
+\begin{practice}{hard}{10}Explain the hidden station problem in a wireless LAN and how CSMA/CA with RTS/CTS overcomes it. Use a timing diagram, and say why CSMA/CD cannot be used on Wi-Fi.
+\sol \textbf{Hidden station}: A and C are both in range of the AP B but out of range of each other. A senses the channel idle while C is sending, so both transmit and their frames \textbf{collide at B}; neither knows (draw the range figure in Section 4.2).
+\textbf{RTS/CTS} (draw the timing figure): after DIFS and a random back-off, A sends a short \textbf{RTS} with the time it needs. B replies \textbf{CTS}. C cannot hear A but \textbf{does hear the CTS}, so it sets its \textbf{NAV} and stays quiet. A sends DATA after SIFS; B returns an ACK after SIFS; then everyone contends again. Collisions can now only hit the short RTS frames, which are cheap to lose.
+\textbf{Why not CSMA/CD}: a radio cannot listen while sending (its own signal swamps the receiver), signals fade so a far collision is not noticed, and hidden stations never hear each other. So Wi-Fi \textbf{avoids} collisions and uses an \textbf{ACK} for every frame instead of detecting them.
+\end{practice}
+
+\begin{practice}{hard}{10}A computer lab has 24 PCs on three hubs (8 PCs each) chained together. Users complain of slow transfers. (a) How many collision and broadcast domains are there? (b) The hubs are replaced by switches, each switch connected to its own port on a router. Count the domains now. (c) Explain why performance improves and suggest how VLANs could be used. Draw the new design.
+\sol
+(a) Hubs repeat everything, so all 24 PCs are in \textbf{1 collision domain} and \textbf{1 broadcast domain}: lots of collisions and back-off.
+(b) Each switch port is a collision domain: $24$ PC links $+ 3$ switch-to-router links $=$ \textbf{27 collision domains}. Each router interface is a broadcast domain: \textbf{3 broadcast domains}. (Draw like the router panel in Section 8, with three switches.)
+(c) Switches send frames only to the destination port, give each PC dedicated full-duplex bandwidth and remove collisions (CSMA/CD no longer needed). The router stops broadcasts spreading between groups. With VLANs, PCs can be grouped by class or course across all three switches (e.g.\ VLAN 10 students, VLAN 20 lecturers), with 802.1Q trunks between switches and inter-VLAN routing on the router, giving security and smaller broadcast domains without recabling.
+\end{practice}
+
+\begin{practice}{hard}{10}A 2 Mbps link is 3000 km long (signal speed $2\times10^{8}$ m/s) and carries 1000-byte frames. (a) Find the link utilisation of stop-and-wait. (b) What window size keeps the link busy? (c) How many sequence-number bits are needed for Go-Back-N and for Selective Repeat? (d) Which would you choose on a noisy link and why?
+\sol
+\begin{working}
+\begin{align*}
+T_{fr} &= \frac{8000 \text{ bits}}{2 \times 10^{6}} = 4 \text{ ms}, \quad T_{p} = \frac{3 \times 10^{6}}{2 \times 10^{8}} = 15 \text{ ms}\\
+a &= 15/4 = 3.75, \quad U = \frac{1}{1 + 2a} = \frac{1}{8.5} \approx \mathbf{11.8\%} && \cmt{(a)}\\
+W &\ge 1 + 2a = 8.5 \Rightarrow \mathbf{9} \text{ frames} && \cmt{(b) round up}\\
+\text{GBN: } 2^{m} - 1 \ge 9 &\Rightarrow m = \mathbf{4} && \cmt{$2^3-1=7$ too few}\\
+\text{SR: } 2^{m-1} \ge 9 &\Rightarrow m = \mathbf{5} && \cmt{$2^4 = 16$}
+\end{align*}
+\end{working}
+(d) \textbf{Selective Repeat}: on a noisy link many frames are lost; Go-Back-N would resend the lost frame \emph{and every frame after it} (up to 8 extra frames each time), wasting bandwidth. SR resends only the damaged frame, at the cost of receiver buffers and more complex logic.
+\end{practice}
+
+%=====================================================================
+\newpage
+\begin{cheatsheet}
+\small
+\begin{tabularx}{\linewidth}{@{}XX@{}}
+\textbf{Layer 2 jobs}: framing, MAC addressing, flow control, error control, access control. Node-to-node.
+\begin{itemize}
+\item \textbf{LLC} 802.2 (upper): SAP / protocol ID, flow, error control (ACK), media-independent
+\item \textbf{MAC} (lower): frame, 48-bit addresses, CRC, access (CSMA/CD, CSMA/CA, token)
+\end{itemize}
+\textbf{Ethernet frame}: Preamble 7 + SFD 1 \textbar{} Dest 6 \textbar{} Src 6 \textbar{} Type 2 \textbar{} Data 46--1500 \textbar{} FCS 4. Frame 64--1518 B.
+
+\textbf{MAC address}: 48 bits = OUI 24 (maker) + NIC 24. b0 I/G (uni/multicast), b1 U/L. Broadcast FF-FF-FF-FF-FF-FF. \textbf{ARP}: IP $\to$ MAC, broadcast request, unicast reply, cache.
+
+\textbf{ALOHA}: pure $S = Ge^{-2G}$, vuln.\ $2T_{fr}$, max 18.4\% at $G=0.5$. Slotted $S = Ge^{-G}$, vuln.\ $T_{fr}$, max 36.8\% at $G=1$.
+
+\textbf{CSMA/CD} (802.3, wired): sense, send, listen, collision $\to$ jam $\to$ back-off $R\in[0,2^k-1]$, $k=\min(n,10)$, abort after 16. Min frame $= 2T_p \times$ rate $= 64$ B.
+
+\textbf{CSMA/CA} (802.11, wireless): DIFS + back-off, RTS/CTS, NAV, SIFS, ACK every frame. Fixes hidden station.
+
+\textbf{CD} = cable, detect, after. \textbf{CA} = air, avoid, before.
+
+\textbf{Controlled access}: reservation, polling, token. \textbf{FDDI}: 100 Mbps, dual counter-rotating fibre rings, token, fault tolerant.
+
+\textbf{802}: .1 bridge/STP/VLAN(.1Q) .2 LLC .3 Ethernet .5 Token Ring .11 Wi-Fi .15 Bluetooth .16 WiMAX
+&
+\textbf{Errors}: single-bit (1 bit) vs burst ($\ge 2$ bits, length first--last).
+\begin{itemize}
+\item \textbf{Parity}: even/odd count of 1s; misses 2 errors. 2-D parity locates 1 error.
+\item \textbf{CRC}: append $n$ zeros, mod-2 divide by $(n+1)$-bit generator, remainder = CRC; receiver remainder 0 = OK. Detects bursts $\le n$.
+\item \textbf{Checksum}: 1's complement sum, wrap carry, send complement; receiver sum = all 1s.
+\end{itemize}
+\textbf{Hamming distance} = 1s in $x \oplus y$. Detect $s$: $d_{min} \ge s+1$. Correct $t$: $d_{min} \ge 2t+1$. Hamming code: $2^r \ge m + r + 1$, parity at 1, 2, 4, 8.
+
+\textbf{FEC} = receiver corrects itself. \textbf{ARQ} = detect + resend.
+
+\textbf{Stop-and-wait}: 1 frame, timer, ACK, resend on timeout, numbers 0/1. $U = 1/(1+2a)$, $a = T_p/T_{fr}$.\newline
+\textbf{GBN}: $W \le 2^m - 1$, resend lost + all after. \textbf{SR}: $W \le 2^{m-1}$, resend only lost, buffers.\newline
+\textbf{Piggybacking}: ACK rides on reverse data frame.
+
+\textbf{Devices}: repeater/hub L1 (1 collision domain); bridge/switch L2 (1 collision domain per port, 1 broadcast domain); router L3 (1 broadcast domain per interface).\newline
+\textbf{Bridge}: learn source, filter, forward, flood, age; STP stops loops.\newline
+\textbf{VLAN}: logical broadcast domain on switches, 802.1Q tag (12-bit VID), trunk, inter-VLAN via router.
+\end{tabularx}
+\end{cheatsheet}
+
+\end{document}

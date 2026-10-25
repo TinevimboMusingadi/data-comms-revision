@@ -1,0 +1,685 @@
+\documentclass[10pt]{article}
+\usepackage{dcn}
+\tikzset{
+  pc/.style={hostn,minimum width=5mm,minimum height=4mm,inner sep=1pt,font=\tiny},
+  term/.style={fill=ink,minimum width=1.2mm,minimum height=4mm,inner sep=0pt},
+  tcap/.style={font=\small\bfseries,color=brand},
+}
+\newcommand{\figcap}[1]{{\scriptsize\color{midgrey}#1}}
+\begin{document}
+
+\packtitle{01}{Fundamentals: Components, Modes, Network Types \& Topologies}
+  {Course outline weeks 1--2: concepts, goals \& applications, network structure, topology design}{HIGH}
+
+This topic appears in \hl{every} paper, usually as 4--12 mark ``explain / differentiate / draw'' parts.
+These are the easiest marks on the paper: learn the definitions, the tables and the diagrams in this pack.
+
+\subsection*{How often this topic is examined}
+\begin{tabularx}{\linewidth}{@{}Xll@{}}
+\toprule
+\textbf{Question asked} & \textbf{Paper(s)} & \textbf{Marks}\\
+\midrule
+Network topologies (describe 3 or 4) & 2025 Q2c, ISA2024 Q2c & 9--12\\
+LAN / MAN / WAN, categories of networks & ISA2024 Q3b, 2018 Q1c & 6--9\\
+Client-server vs peer-to-peer (incl.\ benefits, HIT example) & 2025 Q1b, SE2024 Q4b, Q5d & 4--8\\
+Components of a data communication system (diagram) & 2018 Q1a, SE2024 Q2f & 5\\
+What is a protocol (with examples) & 2025 Q2a & 5\\
+Transmission modes; half duplex; point-to-point & 2023 Q4e, SE2024 Q1a.i, Q1a.ii & 1--6\\
+Network design: 5 floors $\times$ 20 PCs & SE2024 Q3e & 5\\
+Configurations by relationship among nodes & SE2024 Q3d & 4\\
+Hardware, software \& protocols of a network & SE2024 Q4d & 4\\
+Internet vs World Wide Web & SE2024 Q4a & 4\\
+Ring vs bus limitations; logical vs physical topology & SE2024 Q2e, Q3c.i & 2--3\\
+Network administrator / engineer competencies & SE2024 Q4e.i, Q4e.ii & 1--2\\
+\bottomrule
+\end{tabularx}
+
+\begin{examtip}
+The ISA paper says ``illustrate your answer, where appropriate, with large clearly labelled diagrams''.
+\textbf{Draw every topology you describe} and every comparison you can. A small sketch is quick and earns marks.
+\end{examtip}
+
+%=====================================================================
+\section{Data communication: components and characteristics}
+
+\textbf{Data communication} is the exchange of data between two devices over a transmission medium.
+It needs \textbf{hardware} (sender, receiver, intermediate devices) and \textbf{software} (the rules, i.e.\ the \textbf{protocol}).
+
+\begin{center}
+\begin{tikzpicture}
+  \node[node,fill=cream,minimum width=30mm] (ps) at (0,1.9) {\textbf{5. Protocol}\\{\scriptsize Rule 1, Rule 2 \dots\ Rule $n$}};
+  \node[node,fill=cream,minimum width=30mm] (pr) at (10,1.9) {\textbf{5. Protocol}\\{\scriptsize Rule 1, Rule 2 \dots\ Rule $n$}};
+  \draw[<->,dashed,midgrey,thick] (ps) -- node[above,lbl]{both sides follow the \textbf{same} rules} (pr);
+  \node[node,fill=peach,minimum width=30mm,minimum height=10mm] (s) at (0,0) {\textbf{2. Sender}\\{\scriptsize PC, phone, camera}};
+  \node[node,fill=peach,minimum width=30mm,minimum height=10mm] (r) at (10,0) {\textbf{3. Receiver}\\{\scriptsize server, printer, TV}};
+  \draw[->,line width=1.8pt,brand] (s) -- (r);
+  \node[node,fill=white,draw=brand,minimum width=26mm] (m) at (5,0) {\textbf{1. Message}\\{\scriptsize text, numbers, images,}\\{\scriptsize audio, video}};
+  \node[lbl,below=1mm of m] {\textbf{4. Transmission medium} (the path): twisted pair, coaxial, fibre optic, radio waves};
+  \draw[midgrey] (ps) -- (s); \draw[midgrey] (pr) -- (r);
+\end{tikzpicture}\\
+\figcap{Figure: the five components of a data communication system. M-S-R-T-P.}
+\end{center}
+
+\begin{keydef}{The four characteristics of an effective data communication system}
+\textbf{Delivery}: data reaches the correct destination and user. \quad
+\textbf{Accuracy}: delivered without errors.\\
+\textbf{Timeliness}: delivered on time (audio/video need real-time delivery). \quad
+\textbf{Jitter}: the variation in packet arrival time; uneven jitter spoils real-time audio/video.
+\end{keydef}
+\sidenote{Lecturer's 4 characteristics: \textbf{D-A-T-J}, Delivery, Accuracy, Timeliness, Jitter. Do not confuse them with the 5 components.}
+
+\begin{pastq}{2018 Q1a \textnormal{/} SE2024 Q2f}{5}With the aid of a fully labelled diagram, explain all the components involved in a data communication system. / With the aid of diagram, describe the complete computer communication systems.\end{pastq}
+\begin{ans}
+Draw the figure above, then one line per component:
+\begin{enumerate}
+\item \textbf{Message}: the information to be communicated: text, numbers, images, audio or video.
+\item \textbf{Sender}: the device that sends the message, e.g.\ a computer, phone or video camera.
+\item \textbf{Receiver}: the device the message is meant for, e.g.\ a computer, printer or TV.
+\item \textbf{Transmission medium}: the physical path from sender to receiver; wired (twisted pair, coaxial, fibre optic) or wireless (radio, microwave, infrared).
+\item \textbf{Protocol}: an agreed set of rules that governs the communication. Without it two connected devices cannot understand each other, like two people speaking different languages.
+\end{enumerate}
+\end{ans}
+\sidenote{``Complete computer communication system'' (SE2024) = the same 5-component diagram. You may add a modem/NIC or switch between sender and medium to show the hardware path.}
+
+\begin{pastq}{SE2024 Q4d}{4}A basic computer network must consist of at least hardware, software and protocols. Give examples of each of these networking requirements and explain their implementation.\end{pastq}
+\begin{ans}
+\small
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}lXX@{}}
+\toprule
+Requirement & Examples & Implementation / role\\\midrule
+Hardware & PCs, servers, NICs, UTP and fibre cables, switches, routers, wireless access points & Physically connect devices and carry signals; a switch joins devices in a LAN, a router joins networks\\
+Software & Network OS (Windows Server, Linux), NIC drivers, browsers, email clients, firewall software & Manages users, shared resources and the applications that use the network\\
+Protocols & TCP/IP, Ethernet, HTTP, DNS, DHCP & Rules so devices understand each other: addressing, delivery, error control\\
+\bottomrule
+\end{tabularx}
+\end{ans}
+
+%=====================================================================
+\section{Data flow: transmission modes and line configuration}
+
+The \textbf{transmission mode} is the direction of signal flow between two connected devices.
+
+\begin{center}
+\begin{tikzpicture}
+  \foreach \y/\t in {0/Simplex,-1.5/Half duplex,-3.0/Full duplex}{
+    \node[node,fill=peach,minimum width=12mm] (a) at (0,\y) {A};
+    \node[node,fill=peach,minimum width=12mm] (b) at (4.2,\y) {B};
+    \node[tcap,anchor=east] at (-0.9,\y) {\t};
+  }
+  % simplex
+  \draw[msg,line width=1.4pt] (0.7,0) -- (3.5,0);
+  \node[lbl,anchor=west,text width=58mm,align=left] at (5.1,0) {One direction only; B can never reply.\\ \textit{e.g.\ keyboard $\to$ PC, CPU $\to$ monitor, TV/radio broadcast}};
+  % half duplex
+  \draw[msg,line width=1.4pt] (0.7,-1.35) -- node[above,lbl,pos=0.5]{time 1} (3.5,-1.35);
+  \draw[msg,line width=1.4pt,dashed,draw=medc] (3.5,-1.65) -- node[below,lbl,pos=0.5]{time 2} (0.7,-1.65);
+  \node[lbl,anchor=west,text width=58mm,align=left] at (5.1,-1.5) {Both directions, but \textbf{not at the same time}; the sender uses the whole channel.\\ \textit{e.g.\ walkie-talkie, CB radio}};
+  % full duplex
+  \draw[msg,line width=1.4pt] (0.7,-2.85) -- (3.5,-2.85);
+  \draw[msg,line width=1.4pt] (3.5,-3.15) -- (0.7,-3.15);
+  \node[lbl,anchor=west,text width=58mm,align=left] at (5.1,-3.0) {Both directions \textbf{at the same time}; capacity shared or two paths.\\ \textit{e.g.\ telephone / mobile call, video call}};
+\end{tikzpicture}\\
+\figcap{Figure: the three transmission modes (data flow).}
+\end{center}
+
+\begin{pastq}{2023 Q4e}{6}The transmission mode defines the direction of signal flow between two connected devices. State the three (3) transmission modes, giving examples for each mode.\end{pastq}
+\begin{ans}
+\begin{enumerate}
+\item \textbf{Simplex}: communication is unidirectional; one device only sends, the other only receives. Examples: keyboard to computer, computer to monitor, radio/TV broadcast.
+\item \textbf{Half duplex}: both stations can send and receive, but not at the same time; when one sends the other can only receive. Examples: walkie-talkie, CB radio.
+\item \textbf{Full duplex}: both stations send and receive simultaneously. Examples: telephone or mobile phone call, video call.
+\end{enumerate}
+\end{ans}
+
+\begin{pastq}{SE2024 Q1a.i}{1}Explain the following term: Half Duplex Transmission.\end{pastq}
+\begin{ans}
+Two-way transmission in which data flows in both directions but \textbf{only one direction at a time}, e.g.\ a walkie-talkie (press to talk, release to listen).
+\end{ans}
+
+\subsection{Line configuration: point-to-point vs multipoint}
+\begin{center}
+\begin{tikzpicture}
+  \node[hostn] (a) at (0,0) {PC};
+  \node[hostn] (b) at (3,0) {Printer};
+  \draw[link,brand] (a) -- node[above,lbl]{dedicated link} (b);
+  \node[note] at (1.5,-0.75) {\textbf{point-to-point}: whole link for 2 devices};
+  \draw[link] (6,0) -- (12,0);
+  \foreach \x/\n in {6.8/A,8.6/B,10.4/C,11.6/D}{\node[hostn,minimum width=7mm] (h\n) at (\x,0.7) {\n}; \draw[link] (h\n) -- (\x,0);}
+  \node[note] at (9,-0.75) {\textbf{multipoint (multidrop)}: 3+ devices share one link};
+\end{tikzpicture}\\
+\figcap{Figure: the two types of connection (line configuration).}
+\end{center}
+
+\begin{pastq}{SE2024 Q1a.ii}{1}Explain the following term: Point to Point communication.\end{pastq}
+\begin{ans}
+A \textbf{dedicated link between exactly two devices}; the whole capacity of the link is reserved for them, e.g.\ a computer cabled directly to a printer, or a leased line between two routers. (Opposite: multipoint, where three or more devices share one link.)
+\end{ans}
+\sidenote{Synchronous vs asynchronous transmission (SE2024 Q1a.iii) is in Pack 03.}
+
+%=====================================================================
+\section{Categories of networks (by size)}
+
+\begin{center}
+\begin{tikzpicture}[x=17mm,y=7mm]
+  \draw[midgrey,->] (0,0.6) -- (7.3,0.6);
+  \foreach \x/\l in {0/1 m,1/10 m,2/100 m,3/1 km,4/10 km,5/100 km,6/1000 km,7/10\,000 km}{
+    \draw[midgrey] (\x,0.5) -- (\x,0.7); \node[font=\tiny,above] at (\x,0.7) {\l};}
+  \draw[fill=easyc,rounded corners=2pt] (0,-0.3) rectangle (1,0.2) node[midway,font=\scriptsize\bfseries]{PAN};
+  \node[lbl,anchor=west] at (1.05,-0.05) {Bluetooth headset, phone hotspot};
+  \draw[fill=peach,rounded corners=2pt] (1,-1.1) rectangle (3.3,-0.6) node[midway,font=\scriptsize\bfseries]{LAN};
+  \node[lbl,anchor=west] at (3.35,-0.85) {HIT computer lab, office, campus};
+  \draw[fill=medc!70,rounded corners=2pt] (3.7,-1.9) rectangle (4.7,-1.4) node[midway,font=\scriptsize\bfseries]{MAN};
+  \node[lbl,anchor=east] at (3.65,-1.65) {city network, e.g.\ Harare council offices};
+  \draw[fill=brand,rounded corners=2pt] (5,-2.7) rectangle (7,-2.2) node[midway,font=\scriptsize\bfseries,text=white]{WAN};
+  \node[lbl,anchor=east] at (4.95,-2.45) {the Internet, bank branches across Zimbabwe};
+\end{tikzpicture}\\
+\figcap{Figure: network categories by geographic span (log scale).}
+\end{center}
+
+\begin{pastq}{ISA2024 Q3b \textnormal{/} 2018 Q1c}{9 / 6}Describe the differences between LAN, WAN, and MAN. / There are various categories of networks. Explain any three (3).\end{pastq}
+\begin{ans}
+\small
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}p{1.9cm}XXX@{}}
+\toprule
+Feature & LAN (Local Area Network) & MAN (Metropolitan Area Network) & WAN (Wide Area Network)\\\midrule
+Coverage & Room, building or campus (up to a few km) & A city or town (about 5--50 km); can join several LANs & Country, continent, world; joins LANs and MANs\\
+Ownership & Privately owned by one organisation & Often a private provider, ISP or municipality & Public carriers / telcos (TelOne, Liquid), leased lines\\
+Speed & Very high (100 Mbps -- 10 Gbps) & High & Lower; depends on the link bought\\
+Errors, delay & Low error rate, low delay & Moderate & Higher error rate and propagation delay\\
+Cost & Cheap, easy to set up and maintain & Expensive to implement and maintain & Very expensive; cost varies with configuration\\
+Technology & Ethernet, Wi-Fi; switches & Fibre rings, metro Ethernet, WiMAX, cable TV & Routers, leased lines, MPLS, satellite, undersea cable\\
+Example & HIT computer lab & Network linking a city's offices & The Internet; a bank's branch network\\
+\bottomrule
+\end{tabularx}
+For 2018 Q1c (any three, 6 marks): define each with size + ownership + one example (2 marks each). Others you may use: \textbf{PAN} (about 10 m, Bluetooth), \textbf{CAN} (campus), \textbf{WLAN} (wireless LAN), \textbf{SAN} (storage).
+\end{ans}
+\sidenote{``Describe the differences'' = a \textbf{table}. 9 marks: aim for 7 rows $\times$ 3 networks.}
+
+\begin{pastq}{SE2024 Q4a}{4}Distinguish between the internet and the World Wide Web.\end{pastq}
+\begin{ans}
+\begin{tabularx}{\linewidth}{@{}XX@{}}
+\toprule
+\textbf{Internet} & \textbf{World Wide Web (WWW)}\\\midrule
+The global network of interconnected networks: the hardware and infrastructure & A service (application) that runs \textbf{on} the Internet\\
+Uses TCP/IP to move packets & Uses HTTP/HTTPS, HTML and URLs\\
+Carries many services: email, FTP, VoIP, gaming and the Web & A collection of linked web pages (hypertext documents)\\
+Began 1969 as ARPANET & Invented by Tim Berners-Lee, 1989--1991\\
+\bottomrule
+\end{tabularx}
+\end{ans}
+
+%=====================================================================
+\section{Network topologies}
+
+A \textbf{topology} is the layout pattern of the interconnections of nodes and links.
+\textbf{Physical topology} = the actual layout of cables and devices (how it looks).
+\textbf{Logical topology} = how data actually flows between devices (how it works).
+
+\begin{center}
+\begin{minipage}[b]{0.32\linewidth}\centering
+\begin{tikzpicture}
+  \draw[link,line width=1.4pt] (0,0) -- (3.6,0);
+  \node[term] at (-0.05,0) {}; \node[term] at (3.65,0) {};
+  \foreach \x/\s in {0.5/1,1.3/-1,2.1/1,2.9/-1}{\node[pc] (n) at (\x,\s*0.75) {PC}; \draw[link] (n) -- (\x,0);}
+  \node[lbl] at (1.8,1.35) {};
+\end{tikzpicture}\\[2pt]
+{\small\bfseries\color{brand}Bus}\\ \figcap{one backbone, terminator at each end}
+\end{minipage}\hfill
+\begin{minipage}[b]{0.32\linewidth}\centering
+\begin{tikzpicture}
+  \node[switchn,minimum width=9mm] (c) at (0,0) {SW};
+  \foreach \a in {90,162,234,306,18}{\node[pc] (p\a) at (\a:1.15) {PC}; \draw[link] (c) -- (p\a);}
+\end{tikzpicture}\\[2pt]
+{\small\bfseries\color{brand}Star}\\ \figcap{every node to a central hub/switch}
+\end{minipage}\hfill
+\begin{minipage}[b]{0.32\linewidth}\centering
+\begin{tikzpicture}
+  \draw[link] (0,0) circle (1.1);
+  \foreach \a/\l in {90/A,30/B,-30/C,-90/D,-150/E,150/F}{\node[pc,fill=white] at (\a:1.1) {\l};}
+  \draw[msg] (110:0.6) arc (110:-150:0.6);
+  \node[font=\tiny] at (0,0) {token};
+\end{tikzpicture}\\[2pt]
+{\small\bfseries\color{brand}Ring}\\ \figcap{closed loop, data one way, token}
+\end{minipage}
+
+\bigskip
+\begin{minipage}[b]{0.32\linewidth}\centering
+\begin{tikzpicture}
+  \foreach \i in {1,...,5}{\coordinate (m\i) at (90+72*\i-72:1.1);}
+  \foreach \i in {1,...,5}{\foreach \j in {1,...,5}{\ifnum\i<\j \draw[link,thin] (m\i) -- (m\j);\fi}}
+  \foreach \i/\l in {1/A,2/B,3/C,4/D,5/E}{\node[pc] at (m\i) {\l};}
+\end{tikzpicture}\\[2pt]
+{\small\bfseries\color{brand}Mesh (full)}\\ \figcap{$n(n-1)/2$ links: 5 nodes = 10}
+\end{minipage}\hfill
+\begin{minipage}[b]{0.32\linewidth}\centering
+\begin{tikzpicture}
+  \node[switchn,minimum width=10mm] (r) at (1.9,1.3) {root};
+  \node[switchn,minimum width=8mm] (s1) at (0.95,0.3) {SW};
+  \node[switchn,minimum width=8mm] (s2) at (2.85,0.3) {SW};
+  \draw[link] (r) -- (s1); \draw[link] (r) -- (s2);
+  \foreach \x in {0.3,0.95,1.6}{\node[pc] (q) at (\x,-0.7) {PC}; \draw[link] (s1) -- (q);}
+  \foreach \x in {2.2,2.85,3.5}{\node[pc] (q) at (\x,-0.7) {PC}; \draw[link] (s2) -- (q);}
+\end{tikzpicture}\\[2pt]
+{\small\bfseries\color{brand}Tree (hierarchical)}\\ \figcap{stars joined to a root/backbone}
+\end{minipage}\hfill
+\begin{minipage}[b]{0.32\linewidth}\centering
+\begin{tikzpicture}
+  \draw[link,line width=1.4pt] (0,0) -- (3.6,0);
+  \node[term] at (-0.05,0) {}; \node[term] at (3.65,0) {};
+  \foreach \x in {0.9,2.7}{
+    \node[switchn,minimum width=8mm] (s) at (\x,0.75) {SW}; \draw[link] (s) -- (\x,0);
+    \foreach \d in {-0.6,0,0.6}{\node[pc] (q) at (\x+\d,1.7) {PC}; \draw[link] (s) -- (q);}}
+  \node[pc] (z) at (1.8,-0.7) {PC}; \draw[link] (z) -- (1.8,0);
+\end{tikzpicture}\\[2pt]
+{\small\bfseries\color{brand}Hybrid (star-bus)}\\ \figcap{two or more topologies combined}
+\end{minipage}\\[3pt]
+\figcap{Figure: the six physical topologies.}
+\end{center}
+
+\begin{pastq}{2025 Q2c \textnormal{/} ISA2024 Q2c}{12 / 9}Describe any four (4) network topologies that can be used to connect devices. / Identify and explain any three (3) types of network topologies.\end{pastq}
+\begin{ans}
+\small
+For each topology: sketch + how it works + one advantage + one disadvantage (3 marks each).
+\smallskip
+
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}p{1.4cm}XXX@{}}
+\toprule
+Topology & How it works & Advantages & Disadvantages\\\midrule
+Bus & All devices attach by drop cables to one backbone cable, terminated at both ends. A signal travels both ways and every node checks the address & Cheap; least cable; easy to add a node & A break in the backbone stops the whole network; collisions; hard to troubleshoot; slows as nodes are added\\
+Star & Each device has its own point-to-point cable to a central hub or switch; all traffic passes through it & Easy to install and wire; a cable fault affects one node only; easy fault isolation; add/remove without disruption & Hub/switch is a single point of failure; more cable and cost than bus\\
+Ring & Each device connects to its two neighbours, forming a closed loop; data travels one way and each node repeats it (Token Ring, FDDI) & No collisions (token passing); equal access; performs well under heavy load & One break or one failed node can stop the ring; adding a node disrupts it; delay grows with nodes\\
+Mesh & Every device has a dedicated point-to-point link to every other: $n(n-1)/2$ links, $n-1$ ports each & Very reliable, many paths; no shared-link traffic problems; private and secure & Very expensive; lots of cable and I/O ports; hard to install\\
+Tree & A hierarchy: a root node links to second-level nodes, which link to the next level (stars joined to a backbone) & Scalable; easy to manage in sections; point-to-point wiring per segment & If the root/backbone fails, segments are cut off; more difficult to configure and wire\\
+Hybrid & Two or more topologies combined, e.g.\ star-bus, star-ring & Flexible; uses the strengths of each; joins different LANs & Complex to design and manage; expensive\\
+\bottomrule
+\end{tabularx}
+\end{ans}
+
+\begin{mnemonic}
+\textbf{Mesh maths}: links $= \dfrac{n(n-1)}{2}$, ports per device $= n-1$. 5 nodes $\to$ 10 links, 4 ports each. \quad
+Choosing a topology: \textbf{cost, cable length, future growth, cable type, fault tolerance}.
+\end{mnemonic}
+
+\begin{pastq}{SE2024 Q2e}{3}Explain the limitations of a ring network topology compared to a bus network topology.\end{pastq}
+\begin{ans}
+\begin{enumerate}
+\item \textbf{Single break / failed node stops the ring}: data must pass through every node, so one failure breaks the loop (unless a dual ring is used). On a bus a failed node does not affect the others.
+\item \textbf{Adding or removing a device disrupts the network}: the ring must be opened. On a bus you simply tap into the backbone.
+\item \textbf{More delay and complexity}: every node must receive and regenerate the data, so delay grows with the number of nodes, and token management makes it costlier than a bus.
+\end{enumerate}
+\end{ans}
+
+\begin{pastq}{SE2024 Q3c.i}{2}Distinguish between the following terms: Logical verses Physical topology.\end{pastq}
+\begin{ans}
+\textbf{Physical topology} is the actual layout of the cables, devices and their locations (how the network looks).
+\textbf{Logical topology} is the way data flows between devices (how the network works).
+Example: Ethernet through a hub is a \textbf{physical star} but a \textbf{logical bus}; Token Ring wired to a MAU is a physical star but a logical ring.
+\end{ans}
+\sidenote{The hub example scores the second mark: the same network can have different physical and logical topologies.}
+
+%=====================================================================
+\section{Network structure: backbone and local-access design}
+
+Large networks are designed in two levels:
+\begin{itemize}
+\item \textbf{Backbone network}: the high-capacity core that joins the sites (or floors, or buildings). Few nodes (routers, core switches), fast links (fibre, leased lines), usually a \textbf{mesh or partial mesh} so there are alternative paths.
+\item \textbf{Local-access network}: connects the end users' terminals to the nearest backbone node, usually a \textbf{star or tree} through switches, concentrators or multiplexers. Many cheap, lower-speed links.
+\end{itemize}
+
+\begin{center}
+\begin{tikzpicture}
+  \node[routern] (r1) at (4,0.9) {R1};
+  \node[routern] (r2) at (7,0.9) {R2};
+  \node[routern] (r3) at (4,-0.9) {R3};
+  \node[routern] (r4) at (7,-0.9) {R4};
+  \begin{scope}[on background layer]
+    \node[draw=brand,dashed,fill=brand!8,rounded corners=8pt,fit=(r1)(r2)(r3)(r4),inner sep=4mm] (bb) {};
+  \end{scope}
+  \foreach \a/\b in {r1/r2,r1/r3,r2/r4,r3/r4,r1/r4}{\draw[link,brand,line width=1.4pt] (\a) -- (\b);}
+  \node[lbl,above=0mm of bb] {\textbf{Backbone}: partial mesh, fibre / leased lines};
+  \foreach \r/\x/\y/\d in {r1/1.9/0.9/-1,r3/1.9/-0.9/-1,r2/9.1/0.9/1,r4/9.1/-0.9/1}{
+    \node[switchn,minimum width=9mm] (s) at (\x,\y) {SW};
+    \draw[link] (s) -- (\r);
+    \foreach \dy in {0.4,-0.1,-0.6}{\node[pc] (h) at (\x+\d*1.15,\y+\dy+0.1) {PC}; \draw[link,thin] (s) -- (h);}}
+  \node[note] at (1.4,-1.95) {local access (star)}; \node[note] at (9.6,-1.95) {local access (star)};
+\end{tikzpicture}\\
+\figcap{Figure: a two-level design. Users reach their local switch; sites talk over the backbone.}
+\end{center}
+
+\begin{pastq}{SE2024 Q3e}{5}Identify appropriate network topology and network connecting devices for following requirements. Draw a network design for proposed network for the following scenario. An organization having its office in a building of 5 floors. Each floor needs 20 machines.\end{pastq}
+\begin{ans}
+\begin{itemize}
+\item \textbf{Topology}: extended star (hierarchical/tree). A star on each floor; each floor switch up-links to a core switch over the vertical backbone (riser).
+\item \textbf{Devices}: a 24-port access switch per floor; a core switch; a router to the ISP; a firewall; wireless access points; Cat6 UTP to desks and fibre for the riser; servers in the ground-floor server room.
+\item \textbf{Addressing}: one VLAN/subnet per floor, addresses by DHCP.
+\item \textbf{Why}: easy to manage and expand; a failed floor switch only affects that floor.
+\end{itemize}
+\begin{working}[Sizing]
+\begin{align*}
+\text{machines} &= 5 \times 20 = 100\\
+\text{ports per floor} &= 20 + 1\ (\text{AP}) + 1\ (\text{uplink}) = 22 \le 24 && \cmt{so a 24-port switch fits, 2 spare}\\
+/27 &\Rightarrow 2^{5}-2 = 30 \text{ hosts per floor} && \cmt{20 PCs + growth}
+\end{align*}
+\end{working}
+\begin{center}
+\begin{tikzpicture}[yscale=1.05]
+  \foreach \f in {1,...,5}{
+    \pgfmathsetmacro{\y}{\f-5}
+    \draw[midgrey,dashed] (0,\y-0.5) -- (7.2,\y-0.5);
+    \node[tcap,font=\scriptsize\bfseries,anchor=west] at (0,\y) {Floor \f};
+    \node[hostn,minimum width=22mm] (pc\f) at (2.6,\y) {20 PCs + Wi-Fi AP};
+    \node[switchn] (sw\f) at (5.4,\y) {24-port SW};
+    \draw[link] (pc\f) -- (sw\f);
+    \draw[link,brand] (sw\f) -- (7.4,\y);
+    \node[font=\tiny,color=midgrey,anchor=south,inner sep=1pt] at (pc\f.north) {VLAN \f0: 192.168.\f0.0/27};
+  }
+  \draw[link,brand,line width=1.6pt] (7.4,0) -- (7.4,-5.3);
+  \node[note,anchor=west,rotate=90] at (7.75,-3.6) {fibre / Cat6 riser};
+  \node[tcap,font=\scriptsize\bfseries,anchor=west] at (0,-5.7) {Ground};
+  \node[hostn,minimum width=22mm] (srv) at (2.6,-5.7) {DHCP / file servers};
+  \node[switchn,fill=ink] (core) at (5.4,-5.7) {CORE SW};
+  \draw[link] (srv) -- (core); \draw[link,brand,line width=1.6pt] (core) -- (7.4,-5.7) -- (7.4,-5.3);
+  \node[node,fill=hardc!30,minimum width=12mm,font=\scriptsize] (fw) at (8.9,-5.7) {Firewall};
+  \node[routern] (rt) at (10.4,-5.7) {Router};
+  \node[draw=ink,fill=cream,ellipse,font=\scriptsize] (net) at (11.95,-5.7) {Internet};
+  \draw[link] (7.4,-5.7) -- (fw); \draw[link] (fw) -- (rt); \draw[link] (rt) -- (net);
+  \node[lbl,anchor=west,text width=38mm,align=left] at (8.4,-2) {\textbf{Extended star (tree)}:\\ a star on each floor, all floor switches up-linked to one core switch.};
+\end{tikzpicture}\\
+\figcap{Figure: network design for a 5-floor building, 20 machines per floor.}
+\end{center}
+\end{ans}
+
+%=====================================================================
+\section{Relationships among nodes: client-server and peer-to-peer}
+
+\begin{center}
+\begin{minipage}[b]{0.48\linewidth}\centering
+\begin{tikzpicture}
+  \node[node,fill=brand,text=white,minimum width=16mm] (s) at (0,0) {Server};
+  \foreach \a/\i in {200/1,250/2,290/3,340/4}{
+    \node[hostn] (c\i) at (\a:2.1) {Client};
+    \draw[msg] (c\i.north) to[bend left=12] (s);
+    \draw[->,thick,draw=ink] (s) to[bend left=12] (c\i.north);}
+  \node[note] at (0,0.6) {stores data, gives service};
+  \node[note] at (0,-2.75) {orange = request, black = response};
+\end{tikzpicture}\\
+{\small\bfseries\color{brand}Client-server}
+\end{minipage}\hfill
+\begin{minipage}[b]{0.48\linewidth}\centering
+\begin{tikzpicture}
+  \foreach \p/\x/\y in {1/0/0,2/2.6/0,3/0/-1.9,4/2.6/-1.9}{\node[node,fill=peach,minimum width=12mm] (p\p) at (\x,\y) {Peer \p};}
+  \foreach \a/\b in {p1/p2,p1/p3,p1/p4,p2/p3,p2/p4,p3/p4}{\draw[<->,thick,draw=brand] (\a) -- (\b);}
+  \node[note] at (1.3,-2.75) {each peer is both client and server};
+\end{tikzpicture}\\
+{\small\bfseries\color{brand}Peer-to-peer (P2P)}
+\end{minipage}\\[3pt]
+\figcap{Figure: the two relationship models.}
+\end{center}
+
+\begin{pastq}{2025 Q1b}{8}With the aid of proper examples, differentiate between the Client-Server model and the Peer-to-Peer model for network applications.\end{pastq}
+\begin{ans}
+In the \textbf{client-server} model dedicated servers provide services that clients request (the web: a browser asks a web server for a page).\par
+In the \textbf{peer-to-peer} model every node is equal and both requests and provides resources (BitTorrent: each peer downloads pieces from, and uploads pieces to, other peers).\par
+\small
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}p{1.9cm}XX@{}}
+\toprule
+Point & Client-server & Peer-to-peer (P2P)\\\midrule
+Structure & Dedicated, powerful server(s) provide services; clients request them & All nodes are equal peers; each acts as client and server\\
+Control \& security & Centralised: user accounts, access control on the server & Each user manages own machine; weaker security\\
+Data storage & Stored centrally, easy backup & Scattered across peers; backup difficult\\
+Scalability & Scales by adding/upgrading servers; server can become a bottleneck & Small office: slows as peers grow; file-sharing P2P scales because each peer adds capacity\\
+Cost & Expensive: server hardware, network OS, administrators & Cheap: no dedicated server\\
+Failure & Server is a single point of failure & No single point of failure\\
+Examples & Web (browser $\leftrightarrow$ web server), email (Outlook $\leftrightarrow$ mail server), HIT e-learning portal, online banking & BitTorrent, Windows workgroup file sharing, blockchain/Bitcoin, early Skype\\
+\bottomrule
+\end{tabularx}
+\end{ans}
+\sidenote{The question says ``with the aid of proper examples''. Name real applications on both sides or you cap your mark.}
+
+\begin{pastq}{SE2024 Q4b}{4}State the four benefits of client-server networks compared to peer to peer networks.\end{pastq}
+\begin{ans}
+\begin{enumerate}
+\item \textbf{Centralised security}: one place for user authentication and access control.
+\item \textbf{Centralised backup and data integrity}: all data on the server, backed up in one go.
+\item \textbf{Easier management}: software updates, resources and users managed from the server.
+\item \textbf{Better scalability and performance}: dedicated servers handle many clients; add servers as demand grows.
+\end{enumerate}
+\end{ans}
+
+\begin{pastq}{SE2024 Q3d}{4}Describe in detail four possible configurations of computer networks as categorized by relationships among nodes.\end{pastq}
+\begin{ans}
+\begin{enumerate}
+\item \textbf{Peer-to-peer}: all computers are equal; each shares its own resources and acts as client and server. No central server.
+\item \textbf{Client-server}: dedicated servers (file, mail, web, database) provide services to clients that request them.
+\item \textbf{Point-to-point}: a dedicated link joins exactly two nodes.
+\item \textbf{Multipoint (broadcast)}: many nodes share one link or channel; what one sends is received by all (bus, Wi-Fi).
+\end{enumerate}
+\end{ans}
+\sidenote{The wording is ambiguous. Giving P2P, client-server, point-to-point and multipoint covers both readings of ``relationship''.}
+
+\begin{pastq}{SE2024 Q5d}{7}With reference to the client-server paradigm, explain how Harare Institute of Technology students are able to access online learning resources remotely from home.\end{pastq}
+\begin{ans}
+\begin{enumerate}
+\item The student's laptop or phone runs a browser: this is the \textbf{client}. It joins the Internet through the home ISP (Wi-Fi or mobile data).
+\item The student enters the portal URL; the client asks a \textbf{DNS server} to resolve the name to the server's IP address.
+\item The client opens a \textbf{TCP connection} (3-way handshake) to the web server on port 443; \textbf{TLS} encrypts the session.
+\item The client sends an \textbf{HTTP request}; the student logs in and the server \textbf{authenticates} the credentials against its user database.
+\item The \textbf{server} processes the request, fetches notes, videos and assignments from central storage and sends HTTP \textbf{responses}.
+\item The browser displays the resources; uploads (assignments) go the other way with HTTP POST.
+\item One server serves \textbf{many clients at once}; resources are central, so every student sees the same updated material; firewalls/VPN protect the campus side.
+\end{enumerate}
+\begin{center}
+\begin{tikzpicture}[yscale=0.6]
+  \node[node,fill=peach] (c) at (0,0) {Student laptop\\{\scriptsize browser = client}};
+  \node[node] (d) at (4.2,0) {DNS server};
+  \node[node,fill=brand,text=white] (s) at (9.8,0) {HIT e-learning\\{\scriptsize web server + DB}};
+  \foreach \x in {0,4.2,9.8}\draw[midgrey,dashed] (\x,-0.9) -- (\x,-8);
+  \draw[msg] (0,-1.6) -- node[above,lbl]{1. where is the portal?} (4.2,-1.6);
+  \draw[msg] (4.2,-2.6) -- node[above,lbl]{2. its IP address} (0,-2.6);
+  \draw[msg,<->] (0,-3.8) -- node[above,lbl,pos=0.7]{3. TCP 3-way handshake + TLS on port 443} (9.8,-3.8);
+  \draw[msg] (0,-5.0) -- node[above,lbl,pos=0.7]{4. HTTPS request: login, GET notes} (9.8,-5.0);
+  \draw[->,thick,draw=ink] (9.8,-6.2) -- node[above,lbl,pos=0.3]{5. response: page, PDF, video} (0,-6.2);
+  \draw[msg] (0,-7.4) -- node[above,lbl,pos=0.7]{6. POST: upload assignment} (9.8,-7.4);
+\end{tikzpicture}\\
+\figcap{Figure: a remote student session in the client-server model (ISP and Internet in between).}
+\end{center}
+\end{ans}
+
+%=====================================================================
+\section{Protocols and standards}
+
+A \textbf{protocol} is a set of rules that governs data communication: \textbf{what} is communicated, \textbf{how} and \textbf{when}.
+\begin{keydef}{Three key elements of a protocol}
+\textbf{Syntax}: the structure or format of the data (e.g.\ first 8 bits = source address).\\
+\textbf{Semantics}: the meaning of each section of bits and the action to take.\\
+\textbf{Timing}: when data should be sent and how fast, so the receiver is not overwhelmed.
+\end{keydef}
+
+\textbf{Standards} ensure interconnectivity and interoperability, so products from different vendors work together.
+\textbf{De facto} = ``by fact / convention'', adopted by widespread use without approval (e.g.\ TCP/IP grew this way).
+\textbf{De jure} = ``by law / regulation'', approved by an officially recognised body.
+Bodies: \textbf{ISO}, \textbf{ITU-T}, \textbf{ANSI}, \textbf{IEEE} (802.3 Ethernet, 802.11 Wi-Fi), \textbf{EIA}, \textbf{IETF} (RFCs).
+
+\begin{pastq}{2025 Q2a}{5}Protocol is usually associated with the software components of the network, explain with the aid of examples what a protocol is?\end{pastq}
+\begin{ans}
+A \textbf{protocol} is an agreed set of rules that governs data communication between devices: it defines what is communicated, how and when. Without a common protocol, two connected devices are like two people speaking different languages.
+Key elements: \textbf{syntax} (format of the data), \textbf{semantics} (meaning of the bits and the action to take), \textbf{timing} (when and how fast to send).
+Examples:
+\begin{itemize}
+\item \textbf{HTTP/HTTPS}: request and deliver web pages.
+\item \textbf{SMTP} (send), \textbf{POP3/IMAP} (receive): email.
+\item \textbf{TCP / UDP}: reliable or fast transport; \textbf{IP}: addressing and routing.
+\item \textbf{DNS}: name to IP address; \textbf{DHCP}: automatic IP configuration; \textbf{FTP}: file transfer.
+\end{itemize}
+\end{ans}
+
+\begin{mnemonic}
+Protocol elements: \textbf{S-S-T}, Syntax (format), Semantics (meaning), Timing (when / how fast).
+\end{mnemonic}
+
+%=====================================================================
+\section{Network professionals}
+
+\begin{pastq}{SE2024 Q4e.i \textnormal{/} Q4e.ii}{1 + 2}Write brief notes about the competencies expected of the following professionals: (i) A network administrator. (ii) A network Engineer.\end{pastq}
+\begin{ans}
+\textbf{(i) Network administrator} (day-to-day running): configures and monitors the network, manages user accounts and permissions, backups, patching and troubleshooting, keeps the network available.
+
+\textbf{(ii) Network engineer} (design and build): plans and designs networks (topology, addressing, routing); selects, installs and configures routers, switches and firewalls; optimises performance and security; usually holds certifications such as CCNA/CCNP.
+\end{ans}
+\sidenote{Admin = \textbf{runs} it; engineer = \textbf{designs and builds} it. The hacker part (Q4e.iii) is in Pack 08.}
+
+\begin{keydef}{Goals and applications of networks (outline week 1)}
+\textbf{Goals}: resource sharing (printers, files, Internet), communication (email, video), reliability (copies, alternative paths), cost reduction, centralised management, scalability, remote access.
+\textbf{Applications}: e-learning, e-banking, e-commerce, cloud services, IoT, telemedicine.
+\textbf{Disadvantages}: expensive to install, needs admin time, server failure can halt work, cables break, security costs.
+\end{keydef}
+
+%=====================================================================
+\section{Practice questions}
+\setcounter{pq}{0}
+
+\begin{practice}{easy}{4}State the four characteristics that determine the effectiveness of a data communication system.
+\sol \textbf{Delivery} (to the correct destination), \textbf{Accuracy} (no errors), \textbf{Timeliness} (on time; real-time for audio/video), \textbf{Jitter} (variation in packet arrival time must be small).
+\end{practice}
+
+\begin{practice}{easy}{3}A company wants a full mesh between its 6 branch routers. How many links are needed and how many ports does each router need?
+\sol
+\begin{working}
+\begin{align*}
+\text{links} &= \frac{n(n-1)}{2} = \frac{6 \times 5}{2} = \mathbf{15}\\
+\text{ports} &= n - 1 = \mathbf{5} \text{ per router} && \cmt{one link to each other router}
+\end{align*}
+\end{working}
+\end{practice}
+
+\begin{practice}{easy}{3}Classify each as simplex, half duplex or full duplex: (a) a police two-way radio (b) a WhatsApp video call (c) a car radio receiving FM.
+\sol (a) Half duplex \ (b) Full duplex \ (c) Simplex.
+\end{practice}
+
+\begin{practice}{medium}{4}Distinguish between de facto and de jure standards and name two standards organisations.
+\sol \textbf{De facto} (``by fact''): adopted through widespread use and convention without approval by an official body, e.g.\ TCP/IP in its early days. \textbf{De jure} (``by law''): legislated and approved by an officially recognised body, e.g.\ IEEE 802.3. Organisations: ISO, ITU-T, ANSI, IEEE, EIA, IETF.
+\end{practice}
+
+\begin{practice}{medium}{5}Explain the three elements of a protocol, using an email message as the example.
+\sol \textbf{Syntax}: the format: an email has header fields (From, To, Subject) followed by a body, in a fixed order. \textbf{Semantics}: what the fields mean and the action: ``To'' tells the mail server where to deliver; a 550 reply means the mailbox does not exist, so the sender gives up. \textbf{Timing}: when and how fast: the client waits for the server's ``250 OK'' before sending the next command, so it does not overwhelm the server.
+\end{practice}
+
+\begin{practice}{medium}{6}Compare star and mesh topologies under the headings reliability, cost, installation and typical use.
+\sol
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}lXX@{}}
+\toprule
+ & Star & Mesh\\\midrule
+Reliability & One cable fault affects one node, but the central switch is a single point of failure & Very high: many alternative paths, no single point of failure\\
+Cost & Moderate: one cable per node + a switch & Very high: $n(n-1)/2$ links and $n-1$ ports per node\\
+Installation & Easy to install, add and remove nodes & Difficult; adding a node means links to all others\\
+Typical use & Office and lab LANs & WAN backbones between routers\\
+\bottomrule
+\end{tabularx}
+\end{practice}
+
+\begin{practice}{medium}{4}A school lab uses Ethernet with all PCs cabled to a hub. State its physical and logical topology and explain why they differ.
+\sol Physical: \textbf{star} (each PC has its own cable to the hub). Logical: \textbf{bus}, because a hub repeats every frame out of all ports, so every PC receives every frame and they share one collision domain, exactly as on a shared bus cable. Physical = how it is wired; logical = how the data flows.
+\end{practice}
+
+\begin{practice}{hard}{12}A retail company has a head office in Harare and three branches (Bulawayo, Mutare, Gweru), each with about 30 staff. With the aid of a diagram, propose a design using a backbone network and local-access networks. Justify the topology and devices chosen at each level.
+\sol
+\begin{center}
+\begin{tikzpicture}
+  \node[routern] (h) at (0,0) {HRE};
+  \node[routern] (b) at (-3,-1.6) {BYO};
+  \node[routern] (m) at (3,-1.6) {MUT};
+  \node[routern] (g) at (0,-3.0) {GWE};
+  \foreach \a/\b in {h/b,h/m,h/g,b/g,m/g}{\draw[link,brand,line width=1.4pt] (\a) -- (\b);}
+  \node[lbl] at (1.2,-1.6) {WAN backbone\\(partial mesh)};
+  \foreach \r/\x/\y in {h/0/1.25,b/-5.2/-1.6,m/5.2/-1.6,g/0/-4.25}{
+    \node[switchn,minimum width=12mm] (s) at (\x,\y) {LAN SW}; \draw[link] (s) -- (\r);}
+  \node[note] at (-5.2,-2.15) {star, 30 PCs}; \node[note] at (5.2,-2.15) {star, 30 PCs};
+  \node[note,anchor=west] at (0.8,1.25) {HQ: servers, firewall, Internet};
+\end{tikzpicture}
+\end{center}
+\begin{itemize}
+\item \textbf{Backbone}: one router per site joined by leased lines / MPLS / fibre from a carrier, in a \textbf{partial mesh} so each site has at least two paths; if one link fails traffic reroutes. Full mesh (6 links) would cost more for little gain.
+\item \textbf{Local access}: in each site a \textbf{star} of PCs on a 48-port switch (or two 24-port switches, extended star), Cat6 UTP, a wireless AP; the switch up-links to the site router.
+\item \textbf{HQ}: servers (ERP, email, file, DHCP/DNS), firewall and the single Internet link; branches reach them over the backbone.
+\item \textbf{Addressing}: one subnet per site, e.g.\ 10.1.0.0/24, 10.2.0.0/24 \dots
+\item \textbf{Justification}: star is cheap, easy to manage, a fault affects one PC; the mesh backbone gives reliability where an outage would stop all trading; the two-level design scales by adding a site router and one more star.
+\end{itemize}
+\end{practice}
+
+\begin{practice}{hard}{10}Discuss the factors a network designer should consider when choosing a topology for a new hospital network, and recommend a topology.
+\sol
+\begin{enumerate}
+\item \textbf{Reliability / fault tolerance}: patient systems must not stop; avoid bus and ring, where one break stops all.
+\item \textbf{Cost}: budget for cable, switches and ports (mesh is costly).
+\item \textbf{Cable length and building layout}: several wards and floors need a hierarchy.
+\item \textbf{Future growth}: new wards must be added without disrupting others; star/tree expand easily.
+\item \textbf{Ease of troubleshooting}: faults must be isolated quickly.
+\item \textbf{Performance}: imaging (X-ray) files need high bandwidth, no shared collision domain.
+\item \textbf{Security}: separate clinical, admin and guest traffic (VLANs).
+\end{enumerate}
+\textbf{Recommendation}: a \textbf{hybrid}: an extended star (tree) in each building for local access, with redundant core switches joined in a \textbf{partial mesh} backbone, so no single device failure stops the hospital. Draw the core mesh with stars hanging off it.
+\end{practice}
+
+\begin{practice}{hard}{10}``Peer-to-peer networks are obsolete; every organisation should use client-server.'' Discuss this statement, with examples.
+\sol
+\textbf{For client-server}: centralised security and authentication; central backup and data integrity; easier management of users and updates; dedicated servers give consistent performance; essential for banks, universities (HIT e-learning), email and web services.\\
+\textbf{Against (P2P still useful)}: cheap, no server or network OS to buy; quick for a small office of 2--10 PCs sharing a printer (Windows workgroup); no single point of failure; large-scale P2P (BitTorrent, blockchain) scales because every peer adds capacity and bandwidth; reduces load on central servers (e.g.\ software updates delivered peer to peer).\\
+\textbf{Conclusion}: the statement is too strong. Client-server is best where security, central data and many users matter; P2P remains the right choice for very small networks and for distributed content sharing. Many systems are hybrid (a central index server + peer transfers).
+\end{practice}
+
+\begin{practice}{hard}{12}With the aid of diagrams, explain the bus, ring and star topologies, and show what happens in each when one cable segment fails.
+\sol
+Draw each topology (Section 4) and mark a cross on one link.
+\begin{itemize}
+\item \textbf{Bus}: all nodes on one terminated backbone; a signal goes both ways and every node checks the address. \textbf{Backbone break}: the cable is no longer terminated, signals reflect and the \textbf{whole segment goes down}. A drop-cable break isolates only that node.
+\item \textbf{Ring}: each node connects to two neighbours; data travels one way and each node repeats it (token passing). \textbf{One break}: the loop is open, the token cannot circulate and the \textbf{whole ring stops} (a dual ring such as FDDI wraps round the fault).
+\item \textbf{Star}: each node has its own link to a central switch. \textbf{One cable break}: only that node is cut off; the rest work. But if the \textbf{switch} fails, everything stops.
+\end{itemize}
+Conclusion: star gives the best fault isolation for a LAN, which is why modern Ethernet LANs are stars.
+\end{practice}
+
+%=====================================================================
+\newpage
+\begin{cheatsheet}
+\small
+\begin{tabularx}{\linewidth}{@{}XX@{}}
+\textbf{5 components} (M-S-R-T-P)
+\begin{itemize}
+\item Message, Sender, Receiver, Transmission medium, Protocol
+\item 4 characteristics: Delivery, Accuracy, Timeliness, Jitter
+\end{itemize}
+\textbf{Transmission modes}
+\begin{itemize}
+\item Simplex: one way (keyboard, TV broadcast)
+\item Half duplex: both ways, one at a time (walkie-talkie)
+\item Full duplex: both ways at once (phone call)
+\item Point-to-point: dedicated link, 2 devices; multipoint: 3+ share a link
+\end{itemize}
+\textbf{Network sizes}
+\begin{itemize}
+\item PAN $\sim$10 m (Bluetooth); LAN building/campus, private, fast, cheap
+\item MAN city 5--50 km; WAN country/world, carriers, slower, costly
+\item Internet = network of networks (TCP/IP); WWW = web pages on it (HTTP)
+\end{itemize}
+\textbf{Protocol} = rules: what, how, when. Syntax, Semantics, Timing. HTTP, SMTP, TCP, IP, DNS, DHCP, FTP.\par
+\textbf{Standards}: de facto (by use) vs de jure (by law). ISO, ITU-T, ANSI, IEEE, IETF.
+&
+\textbf{Topologies}
+\begin{itemize}
+\item \textbf{Bus}: one backbone + terminators; cheap; break = all down
+\item \textbf{Star}: central switch; easy, fault isolation; switch = single point of failure
+\item \textbf{Ring}: loop, one way, token; no collisions; one break stops ring
+\item \textbf{Mesh}: $n(n-1)/2$ links, $n-1$ ports; reliable, very costly
+\item \textbf{Tree}: hierarchy of stars on a root; scalable; root failure cuts segments
+\item \textbf{Hybrid}: mix (star-bus); flexible, complex
+\item Physical = how it is wired; logical = how data flows (hub: star wired, bus logic)
+\end{itemize}
+\textbf{Design}: backbone = fast core, mesh/partial mesh; local access = star/tree to users. 5 floors $\times$ 20 PCs: extended star, 24-port SW per floor, core SW, router, firewall, VLAN per floor.
+
+\textbf{Client-server}: central server, security, backup, management, scalable; costly, server = SPOF. Web, email, HIT portal.\par
+\textbf{P2P}: equal peers, cheap, no SPOF; weak security, scattered data. BitTorrent, workgroup.
+
+\textbf{Admin} runs the network; \textbf{engineer} designs and builds it.
+\end{tabularx}
+\end{cheatsheet}
+
+\end{document}

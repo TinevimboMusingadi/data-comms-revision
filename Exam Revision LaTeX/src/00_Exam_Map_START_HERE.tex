@@ -1,0 +1,226 @@
+\documentclass[10pt]{article}
+\usepackage{dcn}
+\begin{document}
+
+\packtitle{00}{Exam Map: Start Here}
+  {Built from the course outline and 5 past papers: 2018, 2023, SE2024, ISA2024, 2025}{READ FIRST}
+
+Read this pack first. It shows what the examiner asks, how often, and in which pack each answer is.
+The other 8 packs each hold the past questions with model answers, short notes, diagrams, worked maths, and practice questions at three levels.
+
+%=====================================================================
+\section{The exam format (same every year)}
+
+\begin{itemize}
+\item \textbf{3 hours, 100 marks.} \textbf{FIVE} questions of 25 marks; answer \textbf{any FOUR}. Start each question on a fresh page.
+\item ``Illustrate your answer, where appropriate, with large, clearly labelled diagrams'' (ISA2024 instructions).
+\item One question \textbf{mixes topics}: e.g.\ ISA2024 Q1 = IP header + segmentation + LLC/MAC + subnetting. So you must cover \textbf{all} topics, not just four.
+\end{itemize}
+
+\begin{working}[Time budget]
+\begin{align*}
+\frac{180 \text{ min} - 10 \text{ min reading} - 10 \text{ min checking}}{4 \text{ questions}} &= 40 \text{ min per question} && \cmt{be strict}\\
+\frac{40 \text{ min}}{25 \text{ marks}} &= 1.6 \text{ min per mark} && \cmt{a 6-mark part gets $\approx$10 min}
+\end{align*}
+\end{working}
+\sidenote{Read all 5 questions first. Drop the one with the most parts you can't do. Do your \textbf{strongest} question first: it builds confidence and banks marks.}
+
+%=====================================================================
+\section{Your revision packs}
+
+\begin{center}\small
+\begin{tabularx}{\linewidth}{@{}c X c l@{}}
+\toprule
+\textbf{Pack} & \textbf{Topic} & \textbf{Outline weeks} & \textbf{Priority}\\\midrule
+01 & Fundamentals: components, transmission modes, LAN/MAN/WAN, topologies, client-server, protocols & 1--2 & \textcolor{medc}{\textbf{HIGH}}\\
+02 & OSI \& TCP/IP models, IP vs MAC, internetworking & 1--2, 5--9 & \textcolor{hardc}{\textbf{VERY HIGH}}\\
+03 & Physical layer: media, fibre, signals, impairments, modulation, multiplexing, switching, ADSL & 1--2 & \textcolor{hardc}{\textbf{VERY HIGH}}\\
+04 & Data link \& MAC: LLC/MAC, CSMA/CD/CA, ALOHA, errors, flow control, bridges, switches, VLANs & 3--4 & \textcolor{hardc}{\textbf{VERY HIGH}}\\
+05 & Network layer: IPv4, \textbf{subnetting/VLSM}, IPv4 \& IPv6 headers, SLAAC vs DHCPv6, DHCP, ARP & 5--7 & \textcolor{hardc}{\textbf{VERY HIGH}}\\
+06 & Routing (RIP, EIGRP, OSPF), congestion control, QoS, SDN, ISPs, SLA, WAN & 5--7 & \textcolor{medc}{\textbf{HIGH}}\\
+07 & Transport \& application: TCP vs UDP, handshake, DNS, troubleshooting, RPC, FTP, email & 8--11 & \textcolor{easyc!80!ink}{\textbf{MEDIUM-HIGH}}\\
+08 & Security \& emerging tech: threats, malware, DES vs AES, KDC, CA, VPN, 5G/IoT/cloud & 8--9, 12 & \textcolor{easyc!80!ink}{\textbf{MEDIUM}}\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+%=====================================================================
+\section{Where the marks go: marks per topic per paper}
+
+Each cell shows the marks that topic earned in that paper (each paper sets 125 marks: 5 questions $\times$ 25). Darker means more marks.
+
+\begin{center}
+\begin{tikzpicture}[x=17mm,y=7.5mm]
+  \foreach \p [count=\j from 0] in {2018,2023,SE2024,\textbf{ISA2024},\textbf{2025}}
+     \node[font=\scriptsize] at (\j+1.5,0.5) {\p};
+  \node[font=\scriptsize\bfseries] at (6.5,0.5) {Total};
+  \node[font=\scriptsize\bfseries,text=brand] at (7.6,0.5) {ISS papers};
+  \foreach \name/\a/\b/\c/\d/\e/\tot/\iss [count=\i from 1] in {
+     01 Fundamentals/11/6/43/18/25/103/43,
+     {02 OSI \& TCP/IP}/12/4/13/15/26/70/41,
+     03 Physical \& switching/0/25/34/15/17/91/32,
+     04 Data link \& MAC/31/15/15/19/23/103/42,
+     05 IP \& subnetting/28/23/2/33/24/110/57,
+     06 Routing \& QoS/6/38/2/18/10/74/28,
+     07 Transport \& app/37/4/8/4/0/53/4,
+     08 Security/0/10/8/3/0/21/3}{
+     \node[font=\scriptsize,anchor=east] at (1,-\i+0.5) {\name};
+     \foreach \v [count=\j from 0] in {\a,\b,\c,\d,\e}{
+        \pgfmathsetmacro{\pct}{min(100,\v*2.3)}
+        \fill[brand!\pct!white] (\j+1,-\i) rectangle ++(1,1);
+        \pgfmathsetmacro{\txt}{\v>25 ? "white" : "ink"}
+        \node[font=\scriptsize,text=\txt] at (\j+1.5,-\i+0.5) {\v};
+     }
+     \node[font=\scriptsize\bfseries] at (6.5,-\i+0.5) {\tot};
+     \node[font=\scriptsize\bfseries,text=brand] at (7.6,-\i+0.5) {\iss};
+  }
+  \draw[ink,thin] (1,0) rectangle (6,-8);
+  \draw[brand,thick,rounded corners=1pt] (4,0.05) rectangle (6,-8.05);
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Orange frame = the ISS (Information Security \& Assurance) papers, the version you will sit. ``ISS papers'' = ISA2024 + 2025 marks.}
+\end{center}
+
+\begin{examtip}
+Your paper is the \textbf{ISS 2103} (ISA) version. In the last two ISS papers, \textbf{IP/subnetting (57 marks)}, \textbf{fundamentals and topologies (43)}, \textbf{data link/MAC (42)} and \textbf{OSI (41)} dominate. Transport/application and security got almost nothing there, but don't skip them: they were big in 2018 and 2023.
+\end{examtip}
+
+%=====================================================================
+\section{The ``bankers'': most repeated questions}
+
+\begin{center}\small
+\begin{tabularx}{\linewidth}{@{}rXlc@{}}
+\toprule
+\# & \textbf{Question} & \textbf{Seen in} & \textbf{Pack}\\\midrule
+1 & Subnetting / VLSM calculation & 2018, 2023 (2$\times$), ISA2024, 2025 & 05\\
+2 & OSI layers + functions (with diagram); OSI vs TCP/IP & all 5 papers & 02\\
+3 & Network topologies: describe 3--4; ring vs bus & SE2024, ISA2024, 2025 & 01\\
+4 & Circuit vs packet (vs message) switching + examples & 2023, SE2024, ISA2024, 2025 & 03\\
+5 & CSMA/CD (and CSMA/CD vs CSMA/CA) & 2018, 2023, SE2024, ISA2024 & 04\\
+6 & TCP vs UDP; how UDP sends data; why TCP is reliable & 2018, 2023, SE2024, ISA2024 & 07\\
+7 & IPv4 header fields (TTL, Protocol, Version, DS, addresses) & 2023, ISA2024 & 05\\
+8 & IPv6: shorten addresses, advantages, header & 2018, 2023, ISA2024 & 05\\
+9 & \textbf{SLAAC vs DHCPv6} & ISA2024, 2025 (the last two!) & 05\\
+10 & LLC and MAC sub-layers & 2023, ISA2024 & 04\\
+11 & Transmission media; fibre optic & 2023, SE2024, 2025 & 03\\
+12 & Error detection (parity, CRC, checksum; single-bit vs burst) & 2023, SE2024 & 04\\
+13 & Client-server vs peer-to-peer & SE2024, 2025 & 01\\
+14 & Routing: DV vs LS, RIP/RIPv2/EIGRP/OSPF & 2023, ISA2024 & 06\\
+15 & Multiplexing (concept, FDM vs TDM) & SE2024, 2025 & 03\\
+16 & LAN/MAN/WAN; categories of networks & 2018, ISA2024 & 01\\
+17 & Congestion control / network performance & ISA2024, 2025 & 06\\
+18 & Bridge / switch / router: function and layer & 2018, SE2024, 2025 & 04\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection*{Likely ``new'' questions (in the outline but rarely asked)}
+\begin{itemize}
+\item Sliding window: Go-Back-N vs Selective Repeat; IEEE 802 standards, FDDI, channel allocation (Pack 04).
+\item RPC; data compression; session-layer design issues; FTP, email (SMTP/POP3/IMAP), virtual terminals (Packs 02, 07).
+\item ISDN, terminal handling; backbone and local-access network design (Packs 03, 01).
+\item Emerging technologies: 5G, IoT, cloud, SDN (Packs 06, 08).
+\item Labs: \texttt{ipconfig}, \texttt{ping}, \texttt{tracert}, \texttt{netstat}, \texttt{nslookup}; straight-through vs crossover cables (Pack 07).
+\end{itemize}
+
+%=====================================================================
+\section{How to write answers that score}
+
+\begin{center}\small
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}p{3.4cm}X@{}}
+\toprule
+Command word & What the examiner wants\\\midrule
+List / state / name & Short points only, one per mark.\\
+Define / explain the term & A clear definition + one example (or how it works).\\
+Describe / explain & Definition + how it works step by step + an example. A diagram earns marks.\\
+Differentiate / distinguish / compare & A \textbf{table} with matching rows (4 marks = 4 rows). ``Compare \emph{and contrast}'' also wants similarities.\\
+With the aid of a diagram & The diagram must be \textbf{labelled}; usually about half the marks.\\
+Calculate / show working & Every step: binary mask, borrowed bits, block size, then a results table.\\
+Discuss & Several points, each explained, with advantages/disadvantages or examples.\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{trap}
+\begin{itemize}
+\item Writing one long paragraph for a ``differentiate'' question. Use a table.
+\item An unlabelled diagram. Label every box and arrow, and add a title.
+\item Giving 3 points for a 6-mark ``explain'' question. Go for 6 points, or 3 points each with a reason.
+\item Scenario questions (e.g.\ ``HIT students accessing resources from home'', ``5-floor building''): answer \textbf{in the scenario's words}, not just theory.
+\end{itemize}
+\end{trap}
+
+%=====================================================================
+\section{Study plan: 22 Oct to 6 Nov}
+
+\begin{center}\small
+\begin{tabularx}{\linewidth}{@{}l X@{}}
+\toprule
+\textbf{Days} & \textbf{Do}\\\midrule
+22--23 Oct & Pack 05: do every subnetting question in the pack \textbf{twice}, without looking.\\
+24--25 Oct & Pack 02 (OSI): draw the OSI diagram from memory until it takes 3 minutes. Pack 01.\\
+26--27 Oct & Pack 04 (data link): CSMA/CD flowchart, ALOHA, LLC/MAC, error table.\\
+28--29 Oct & Pack 03 (physical, switching, multiplexing, ADSL).\\
+30--31 Oct & Pack 06 (routing, congestion, QoS, SDN).\\
+1 Nov & Packs 07 and 08.\\
+2--3 Nov & Sit the \textbf{ISA2024} and \textbf{2025} papers under timed conditions (3 h each). Mark with the packs.\\
+4--5 Nov & Redo every practice question you got wrong. Read all 9 cheat sheets.\\
+6 Nov & Morning: this page + the Pack 05 cheat sheet. \textbf{Good luck!}\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+%=====================================================================
+\newpage
+\begin{cheatsheet}
+\small
+\begin{tabularx}{\linewidth}{@{}XX@{}}
+\textbf{Models}
+\begin{itemize}
+\item OSI 7$\to$1: Application, Presentation, Session, Transport, Network, Data Link, Physical (\emph{All People Seem To Need Data Processing})
+\item PDUs: data / segment / packet / frame / bits
+\item Devices: L1 hub, repeater; L2 switch, bridge; L3 router
+\item Delivery: L2 hop-to-hop (MAC), L3 host-to-host (IP), L4 process-to-process (port)
+\item TCP/IP: Application, Transport, Internet, Network Access
+\end{itemize}
+\textbf{Subnetting}
+\begin{itemize}
+\item Hosts $= 2^h - 2$; subnets $= 2^s$; block $= 256 -$ mask octet
+\item /24 254, /25 126, /26 62, /27 30, /28 14, /29 6, /30 2
+\item A 1--126 /8, B 128--191 /16, C 192--223 /24
+\item Private: 10/8, 172.16--31, 192.168/16
+\end{itemize}
+\textbf{Headers}
+\begin{itemize}
+\item IPv4 20 B; TTL; Protocol 6 TCP, 17 UDP, 1 ICMP
+\item IPv6 128-bit, 40 B, hop limit, flow label; \texttt{::} only once
+\item SLAAC = host builds its address (stateless); DHCPv6 = server assigns and records (stateful)
+\item DHCP DORA, UDP 67/68
+\end{itemize}
+&
+\textbf{Data link}
+\begin{itemize}
+\item CSMA/CD wired: detect, jam, backoff. CSMA/CA wireless: avoid, RTS/CTS, ACK
+\item Pure ALOHA 18.4\% (vulnerable $2T$); slotted 36.8\% ($T$)
+\item Single-bit $\to$ parity; burst $\to$ CRC; checksum in IP/TCP/UDP
+\item Hamming: detect $s$ needs $d = s+1$; correct $t$ needs $d = 2t+1$
+\item MAC 48-bit = 24-bit OUI + 24-bit NIC. ARP: IP $\to$ MAC
+\end{itemize}
+\textbf{Physical}
+\begin{itemize}
+\item Circuit = dedicated path (phone, ISDN); packet = shared (IP, X.25, Frame Relay)
+\item FDM frequency (analogue); TDM time slots (digital); WDM light
+\item Guided: twisted pair, coax, fibre. Unguided: radio, microwave, infrared
+\item Impairments: attenuation, distortion, noise
+\end{itemize}
+\textbf{Routing \& transport}
+\begin{itemize}
+\item RIP: DV, hop count (max 15), 30 s; v2 classless, multicast 224.0.0.9, auth
+\item EIGRP: advanced DV, DUAL, bandwidth + delay. OSPF: LS, Dijkstra, cost
+\item QoS: bandwidth, latency, jitter, loss. VoIP $<$150 ms, $<$30 ms jitter, $<$1\% loss
+\item TCP: SYN, SYN/ACK, ACK. UDP: 8-byte header, no ACK. DNS: UDP 53
+\item DES 56-bit key, 64-bit block, 16 rounds; AES 128/192/256, 128-bit block
+\end{itemize}
+\end{tabularx}
+\end{cheatsheet}
+
+\end{document}

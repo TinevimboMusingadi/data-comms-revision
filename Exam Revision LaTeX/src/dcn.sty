@@ -1,0 +1,161 @@
+% dcn.sty -- shared style for the ISS 2103 Data Communications & Networks revision packs
+% Palette: #F46F2C #FFA86A #F2E7DC #A9A9A9 #2E2E2E  (+ Happy Orange for difficulty)
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{dcn}[2026/10/22 DCN revision packs]
+
+% ---------- page ----------
+\RequirePackage[a4paper,top=20mm,bottom=22mm,left=18mm,right=50mm,
+  marginparwidth=36mm,marginparsep=5mm,headheight=14pt]{geometry}
+\RequirePackage[T1]{fontenc}
+\RequirePackage[utf8]{inputenc}
+\RequirePackage{lmodern}
+\RequirePackage[scaled=0.92]{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\RequirePackage{sansmath}\sansmath
+\RequirePackage{microtype}
+\RequirePackage{amsmath,amssymb}
+\RequirePackage{xcolor}
+\RequirePackage{graphicx}
+\RequirePackage{booktabs,tabularx,array,multirow,colortbl,longtable}
+\RequirePackage{enumitem}
+\RequirePackage{marginnote}
+\RequirePackage{fancyhdr}
+\RequirePackage{titlesec}
+\RequirePackage[most]{tcolorbox}
+\RequirePackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,shapes.misc,calc,fit,
+  backgrounds,matrix,decorations.pathreplacing,patterns}
+\RequirePackage{hyperref}
+
+% ---------- colours ----------
+\definecolor{brand}{HTML}{F46F2C}    % main orange
+\definecolor{peach}{HTML}{FFA86A}    % question boxes
+\definecolor{cream}{HTML}{F2E7DC}    % maths / working blocks
+\definecolor{midgrey}{HTML}{A9A9A9}  % rules, comments
+\definecolor{ink}{HTML}{2E2E2E}      % body text
+\definecolor{easyc}{HTML}{FFAF42}
+\definecolor{medc}{HTML}{FF8303}
+\definecolor{hardc}{HTML}{FD5602}
+\definecolor{softpeach}{HTML}{FEDEBE}
+\color{ink}
+\hypersetup{colorlinks=true,linkcolor=brand,urlcolor=brand,pdfborder={0 0 0}}
+
+\setlist{nosep,leftmargin=*,topsep=2pt}
+\setlist[itemize]{label={\color{brand}\textbullet}}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+\renewcommand{\arraystretch}{1.25}
+
+% ---------- headings ----------
+\titleformat{\section}{\Large\bfseries\color{brand}}
+  {\colorbox{brand}{\color{white}\,\thesection\,}}{0.6em}{}[{\color{peach}\titlerule[1pt]}]
+\titleformat{\subsection}{\large\bfseries\color{ink}}{\color{brand}\thesubsection}{0.5em}{}
+\titlespacing*{\section}{0pt}{14pt}{6pt}
+\titlespacing*{\subsection}{0pt}{10pt}{4pt}
+
+% ---------- header / footer ----------
+\newcommand{\packname}{}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyheadoffset[R]{41mm}
+\fancyfootoffset[R]{41mm}
+\fancyhead[L]{\small\color{midgrey}ISS 2103 Data Communications \& Networks}
+\fancyhead[R]{\small\color{brand}\bfseries\packname}
+\fancyfoot[L]{\small\color{midgrey}Made by King Tine, the AI Engineer}
+\fancyfoot[R]{\small\color{ink}\thepage}
+\renewcommand{\headrulewidth}{0.6pt}
+\renewcommand{\headrule}{{\color{peach}\hrule height\headrulewidth}}
+
+% ---------- title block ----------
+% \packtitle{05}{Network Layer: IPv4, Subnetting, IPv6}{Outline weeks 5--7}{VERY HIGH}
+\newcommand{\packtitle}[4]{%
+  \renewcommand{\packname}{Pack #1}%
+  \thispagestyle{fancy}%
+  \begin{tcolorbox}[enhanced,colback=brand,colframe=brand,arc=3mm,boxrule=0pt,
+     left=6mm,right=6mm,top=5mm,bottom=5mm,grow to right by=41mm]
+   {\color{white}\small\bfseries ISS 2103 \textbullet{} EXAM REVISION PACK #1}\\[3pt]
+   {\color{white}\fontsize{22}{26}\selectfont\bfseries #2}\\[5pt]
+   {\color{cream}\small #3 \hfill Priority: \textbf{#4}}
+  \end{tcolorbox}}
+
+% ---------- side notes (margin) ----------
+\newcommand{\sidenote}[1]{\marginnote{%
+  \begin{tcolorbox}[enhanced,colback=softpeach,colframe=brand,boxrule=0.4pt,
+     arc=1.5mm,left=1.5mm,right=1.5mm,top=1mm,bottom=1mm,width=\marginparwidth]
+   \scriptsize\raggedright #1\end{tcolorbox}}}
+
+% ---------- generic boxes ----------
+\tcbset{dcnbase/.style={enhanced,breakable,arc=1.5mm,boxrule=0.6pt,
+   left=3mm,right=3mm,top=2mm,bottom=2mm,before skip=6pt,after skip=6pt}}
+
+% Past paper question: \begin{pastq}{2025 Q4a}{12} text \end{pastq}
+\newtcolorbox{pastq}[2]{dcnbase,colback=peach!18,colframe=peach,
+  fonttitle=\small\bfseries,coltitle=ink,colbacktitle=peach,
+  title={PAST PAPER \quad\colorbox{brand}{\color{white}\strut #1}\hfill[#2 marks]}}
+
+% Model answer
+\newtcolorbox{answer}[1][]{dcnbase,colback=white,colframe=brand,boxrule=0pt,
+  leftrule=2.5pt,arc=0pt,fonttitle=\small\bfseries,coltitle=brand,
+  attach title to upper={\par\smallskip},title={#1}}
+\newenvironment{ans}{\begin{answer}[Model answer]}{\end{answer}}
+
+% Working / maths block
+\newtcolorbox{working}[1][Working]{dcnbase,colback=cream,colframe=cream!70!midgrey,
+  fonttitle=\small\bfseries,coltitle=ink,colbacktitle=cream!70!midgrey,title={#1}}
+
+% comment on a maths step, used in align*:  x &= y && \cmt{why}
+\newcommand{\cmt}[1]{\text{\small\color{brand!80!ink}\itshape$\leftarrow$ #1}}
+
+% Exam tip / trap / mnemonic
+\newtcolorbox{examtip}{dcnbase,colback=brand!8,colframe=brand,
+  fonttitle=\small\bfseries,title={EXAM TIP}}
+\newtcolorbox{trap}{dcnbase,colback=hardc!8,colframe=hardc,
+  fonttitle=\small\bfseries,title={TRAP -- where students lose marks}}
+\newtcolorbox{mnemonic}{dcnbase,colback=easyc!15,colframe=easyc,coltitle=ink,
+  fonttitle=\small\bfseries,title={REMEMBER IT}}
+\newtcolorbox{keydef}[1]{dcnbase,colback=white,colframe=midgrey,boxrule=0.4pt,
+  fonttitle=\small\bfseries,coltitle=ink,colbacktitle=cream,title={#1}}
+
+% Practice questions by difficulty: \begin{practice}{easy}{3} ... \end{practice}
+\newcommand{\diffcol}[1]{\ifcsname dc@#1\endcsname\csname dc@#1\endcsname\else brand\fi}
+\expandafter\def\csname dc@easy\endcsname{easyc}
+\expandafter\def\csname dc@medium\endcsname{medc}
+\expandafter\def\csname dc@hard\endcsname{hardc}
+\newcounter{pq}
+\newtcolorbox{practice}[2]{dcnbase,colback=white,colframe=\diffcol{#1},
+  fonttitle=\small\bfseries,colbacktitle=\diffcol{#1},coltitle=white,
+  title={\stepcounter{pq}PRACTICE Q\thepq\quad\MakeUppercase{#1}\hfill[#2 marks]}}
+% the answer inside a practice box
+\newcommand{\sol}{\par\smallskip{\color{\diffcol{medium}}\rule{\linewidth}{0.4pt}}\par
+  {\small\bfseries\color{brand}Answer}\par}
+
+% frequency table helper colour
+\newcommand{\hl}[1]{\textcolor{brand}{\textbf{#1}}}
+\newcommand{\mk}[1]{\hfill\textcolor{midgrey}{[#1]}}
+
+% Cheat sheet
+\newtcolorbox{cheatsheet}{enhanced,colback=cream,colframe=ink,arc=2mm,boxrule=1pt,
+  fonttitle=\large\bfseries,colbacktitle=ink,coltitle=white,
+  title={ONE-PAGE CHEAT SHEET},grow to right by=41mm,left=4mm,right=4mm}
+
+% ---------- TikZ styles ----------
+\tikzset{
+  >=Stealth,
+  node/.style={draw=ink,fill=cream,rounded corners=2pt,minimum height=7mm,
+     minimum width=14mm,font=\small,align=center},
+  hostn/.style={draw=ink,fill=white,rounded corners=1pt,minimum height=6mm,
+     minimum width=10mm,font=\scriptsize,align=center},
+  routern/.style={draw=ink,fill=peach,circle,minimum size=9mm,font=\scriptsize,align=center},
+  switchn/.style={draw=ink,fill=brand!70,rectangle,minimum height=6mm,
+     minimum width=16mm,font=\scriptsize\bfseries,text=white,align=center},
+  hubn/.style={draw=ink,fill=midgrey!60,rectangle,minimum height=6mm,
+     minimum width=12mm,font=\scriptsize,align=center},
+  layer/.style={draw=ink,minimum height=7mm,minimum width=42mm,font=\small,align=center},
+  hdr/.style={draw=ink,minimum height=7mm,font=\scriptsize,align=center,fill=white},
+  link/.style={draw=ink,thick},
+  msg/.style={->,thick,draw=brand},
+  lbl/.style={font=\scriptsize,color=ink,align=center},
+  note/.style={font=\scriptsize\itshape,color=midgrey,align=center},
+}
+
+\endinput

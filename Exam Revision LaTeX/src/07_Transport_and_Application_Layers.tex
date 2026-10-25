@@ -1,0 +1,778 @@
+\documentclass[10pt]{article}
+\usepackage{dcn}
+\begin{document}
+
+\packtitle{07}{Transport \& Application Layers}
+  {Course outline weeks 8--11: transport design issues, session \& presentation layers, connection management, RPC, compression, FTP, e-mail, virtual terminals + lab commands}{MEDIUM--HIGH}
+
+\hl{TCP vs UDP} has been asked in 4 of the 5 papers (it is the only part of this topic on the ISA2024 paper).
+The 2018 paper put a whole 25-mark question on DNS, troubleshooting and TCP. Outline topics such as RPC, compression, FTP and e-mail have \emph{not} been asked yet, so they are covered here and in the practice questions.
+
+\subsection*{How often this topic is examined}
+\begin{tabularx}{\linewidth}{@{}Xll@{}}
+\toprule
+\textbf{Question asked} & \textbf{Paper(s)} & \textbf{Marks}\\
+\midrule
+TCP vs UDP (differences at layer 4) & 2018 Q2a, SE2024 Q5e & 4--5\\
+How data is sent with UDP (connectionless) & 2023 Q5c, ISA2024 Q5a & 4\\
+Why TCP is called reliable (with example) & 2018 Q5a & 6\\
+TCP 3-way handshake with diagrams & 2018 Q3c & 6\\
+How DNS works, recursive lookups & 2018 Q2b & 10\\
+Troubleshooting a PC that cannot reach the Internet & 2018 Q2c & 10\\
+Services the Internet offers (list four) & SE2024 Q5c & 4\\
+RPC, compression, FTP, e-mail, Telnet/SSH, cables & not yet asked (course outline) & likely\\
+\bottomrule
+\end{tabularx}
+
+\begin{examtip}
+Every TCP question gets more marks with a \textbf{time-line diagram} (two vertical lines, slanted arrows).
+Practise drawing the handshake and the lost-segment diagram in under 2 minutes each.
+\end{examtip}
+
+%=====================================================================
+\section{Transport layer services, ports and sockets}
+
+The transport layer gives \textbf{process-to-process} (end-to-end) delivery of the whole message.
+The network layer (IP) only gets a packet to the right \emph{computer}; the transport layer gets it to the right \emph{program} on that computer.
+
+\begin{itemize}
+\item \textbf{Segmentation and reassembly}: the message is cut into \textbf{segments} carrying sequence numbers, so the receiver can put them back in order.
+\item \textbf{Port address} (service-point address): a 16-bit number (0--65\,535) that labels a process. Well-known ports 0--1023 (HTTP 80, Telnet 23), registered 1024--49\,151, dynamic/ephemeral 49\,152--65\,535 (chosen by the client).
+\item \textbf{Socket} = IP address + port, e.g.\ 196.4.70.10:80. A TCP connection is identified by the pair of sockets (client socket, server socket).
+\item \textbf{Multiplexing / demultiplexing}: many applications share one IP address; the port numbers sort the incoming segments to the right process.
+\item \textbf{Connection control} (set-up and release), \textbf{flow control} and \textbf{error control}: done \emph{end to end}, not link by link as at the data link layer.
+\item Transport protocols in TCP/IP: \textbf{TCP} (reliable, connection-oriented), \textbf{UDP} (simple, connectionless), \textbf{SCTP} (combines both; used for VoIP signalling).
+\end{itemize}
+
+\begin{keydef}{Transport layer design issues (outline weeks 8--9)}
+Addressing (ports, sockets) \textbullet{} connection establishment \textbullet{} connection release \textbullet{} flow control and buffering \textbullet{} multiplexing many conversations over one network connection \textbullet{} error control \textbullet{} crash recovery.
+\end{keydef}
+
+\begin{center}\small
+\begin{tabular}{llll}
+\toprule
+\textbf{Service} & \textbf{Port} & \textbf{Service} & \textbf{Port}\\\midrule
+FTP data / control & TCP 20 / 21 & HTTP / HTTPS & TCP 80 / 443\\
+SSH & TCP 22 & POP3 / IMAP & TCP 110 / 143\\
+Telnet & TCP 23 & DNS & UDP 53 (TCP 53 zone transfer)\\
+SMTP & TCP 25 (587) & DHCP server / client & UDP 67 / 68\\
+TFTP & UDP 69 & SNMP & UDP 161 / 162\\
+\bottomrule
+\end{tabular}
+\end{center}
+\sidenote{\textbf{Port} identifies the program, \textbf{IP} the host, \textbf{MAC} the network card. Three addresses, three layers.}
+
+%=====================================================================
+\section{TCP vs UDP}
+
+\begin{center}
+\begin{tikzpicture}[x=3.6mm,y=7mm]
+  \foreach \b in {0,4,10,16,31}{\node[font=\tiny] at (\b+0.5,0.35){\b};}
+  \draw[fill=brand!60] (0,0) rectangle (16,-1) node[midway,font=\scriptsize\bfseries]{Source Port (16)};
+  \draw[fill=brand!60] (16,0) rectangle (32,-1) node[midway,font=\scriptsize\bfseries]{Destination Port (16)};
+  \draw[fill=peach] (0,-1) rectangle (32,-2) node[midway,font=\scriptsize\bfseries]{Sequence Number (32)};
+  \draw[fill=peach] (0,-2) rectangle (32,-3) node[midway,font=\scriptsize\bfseries]{Acknowledgement Number (32)};
+  \draw[fill=cream] (0,-3) rectangle (4,-4) node[midway,font=\tiny]{HLEN};
+  \draw[fill=cream] (4,-3) rectangle (10,-4) node[midway,font=\tiny]{Reserved};
+  \foreach \f [count=\k from 0] in {U,A,P,R,S,F}
+    \draw[fill=easyc!50] (10+\k,-3) rectangle (11+\k,-4) node[midway,font=\tiny]{\f};
+  \draw[fill=peach] (16,-3) rectangle (32,-4) node[midway,font=\scriptsize\bfseries]{Window Size (16)};
+  \draw[fill=cream] (0,-4) rectangle (16,-5) node[midway,font=\scriptsize]{Checksum (16)};
+  \draw[fill=cream] (16,-4) rectangle (32,-5) node[midway,font=\scriptsize]{Urgent Pointer (16)};
+  \draw[fill=white,dashed] (0,-5) rectangle (32,-6) node[midway,font=\scriptsize]{Options (e.g.\ MSS) + Padding};
+  \draw[decorate,decoration={brace,amplitude=5pt}] (32.3,0) -- (32.3,-5) node[midway,right=6pt,lbl]{20 bytes\\minimum};
+  \draw[decorate,decoration={brace,amplitude=5pt}] (32.3,-5) -- (32.3,-6) node[midway,right=6pt,lbl]{up to\\60 B};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: TCP header. Flags: URG, ACK, PSH, RST, SYN, FIN. Orange = fields that make TCP reliable.}
+\end{center}
+
+\begin{center}
+\begin{tikzpicture}[x=3.6mm,y=7mm]
+  \foreach \b in {0,16,31}{\node[font=\tiny] at (\b+0.5,0.35){\b};}
+  \draw[fill=brand!60] (0,0) rectangle (16,-1) node[midway,font=\scriptsize\bfseries]{Source Port (16)};
+  \draw[fill=brand!60] (16,0) rectangle (32,-1) node[midway,font=\scriptsize\bfseries]{Destination Port (16)};
+  \draw[fill=cream] (0,-1) rectangle (16,-2) node[midway,font=\scriptsize]{Length (16) header + data};
+  \draw[fill=cream] (16,-1) rectangle (32,-2) node[midway,font=\scriptsize]{Checksum (16)};
+  \draw[fill=white,dashed] (0,-2) rectangle (32,-3.2) node[midway,font=\scriptsize]{Data (application message)};
+  \draw[decorate,decoration={brace,amplitude=5pt}] (32.3,0) -- (32.3,-2) node[midway,right=6pt,lbl]{only\\8 bytes};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: UDP header. No sequence number, no ACK, no window: that is why it is so small.}
+\end{center}
+
+\begin{pastq}{2018 Q2a \textnormal{/} SE2024 Q5e}{4--5}Differentiate between TCP and UDP as they apply to layer four (4) of the OSI model. / Discuss the differences between TCP and UDP.\end{pastq}
+\begin{ans}
+\small
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}p{2.3cm}XX@{}}
+\toprule
+Feature & TCP (Transmission Control Protocol) & UDP (User Datagram Protocol)\\\midrule
+Connection & Connection-oriented: 3-way handshake before data, 4-way close & Connectionless: no set-up, just sends datagrams\\
+Reliability & Reliable: sequence numbers, ACKs, retransmission of lost segments & Unreliable (best effort): no ACKs, no retransmission\\
+Ordering & Delivers bytes in order (reorders by sequence number) & No ordering; datagrams may arrive out of order\\
+Flow / congestion control & Yes: sliding window, slow start & None\\
+Header & 20--60 bytes & 8 bytes\\
+Speed & Slower, more overhead & Faster, low overhead, low delay\\
+Data unit & Segment (byte stream) & Datagram (separate messages)\\
+Casting & Unicast only & Unicast, broadcast and multicast\\
+Used by & HTTP, FTP, SMTP, SSH, Telnet & DNS, DHCP, SNMP, TFTP, VoIP, streaming, games\\
+\bottomrule
+\end{tabularx}
+\end{ans}
+\begin{mnemonic}
+\textbf{TCP = a phone call}: dial, the other side answers, you talk in order, you say goodbye.
+\textbf{UDP = posting a letter}: drop it in the box and hope; no reply that it arrived.
+\end{mnemonic}
+
+%=====================================================================
+\section{How UDP sends data}
+
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=6mm]
+  \node[node,fill=peach] at (0,0) {Host A\\{\scriptsize app, port 50000}};
+  \node[node,fill=brand,text=white] at (8,0) {Host B\\{\scriptsize DNS server, port 53}};
+  \draw[midgrey,dashed] (0,-0.9) -- (0,-6.2); \draw[midgrey,dashed] (8,-0.9) -- (8,-6.2);
+  \node[note] at (4,-1.2) {no handshake: the first thing sent is data};
+  \draw[msg] (0,-1.8) -- node[midway,lbl,fill=white]{datagram 1 [8-byte header $|$ data]} (8,-2.6);
+  \draw[msg] (0,-3.0) -- (5.2,-3.52);
+  \node[lbl,fill=white] at (2.6,-3.0) {datagram 2};
+  \node[font=\bfseries,text=hardc] at (5.5,-3.55) {$\times$};
+  \node[lbl,text=hardc,anchor=west] at (5.8,-3.55) {lost: nobody notices};
+  \draw[msg] (8,-4.2) -- node[midway,lbl,fill=white]{reply datagram} (0,-5.0);
+  \node[note] at (4,-6.0) {no ACK, no retransmission, no ordering: the \textbf{application} must cope};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: UDP connectionless transmission.}
+\end{center}
+
+\begin{pastq}{2023 Q5c \textnormal{/} ISA2024 Q5a}{4}In contrast to TCP, UDP is described as a connectionless protocol. Briefly explain how data is transmitted between two computers using the UDP protocol.\end{pastq}
+\begin{ans}
+\begin{enumerate}
+\item The application passes a message to UDP, which adds an \textbf{8-byte header} (source port, destination port, length, checksum) to form a \textbf{user datagram}.
+\item There is \textbf{no connection set-up}: the datagram is handed straight to IP, which routes it on its own to the destination IP address.
+\item Each datagram is \textbf{independent}: datagrams may take different paths and arrive out of order, duplicated or not at all.
+\item The receiving UDP checks the checksum; a damaged datagram is silently discarded, otherwise the data goes to the process named by the \textbf{destination port}.
+\end{enumerate}
+No ACKs, retransmission, flow or congestion control, so it is fast with low overhead: ideal for DNS queries, DHCP, VoIP and live video.
+\end{ans}
+\sidenote{``Connectionless'' does not mean ``no addresses''. Every UDP datagram still carries both port numbers and travels inside an IP packet with both IP addresses.}
+
+%=====================================================================
+\section{Why TCP is reliable}
+
+TCP gives a \textbf{reliable byte stream} over an unreliable IP network using these mechanisms:
+\begin{itemize}
+\item \textbf{Sequence numbers}: every byte is numbered, so missing, duplicate or out-of-order data is found.
+\item \textbf{Cumulative acknowledgements}: ACK = the number of the \emph{next} byte expected.
+\item \textbf{Retransmission}: a segment not ACKed before the \textbf{retransmission timer} expires (or after 3 duplicate ACKs, ``fast retransmit'') is sent again.
+\item \textbf{Checksum}: corrupted segments are dropped and later resent.
+\item \textbf{Flow control (sliding window)}: the receiver advertises a window = how many bytes it can still buffer; the sender never has more than that unacknowledged.
+\item \textbf{Congestion control}: slow start and congestion avoidance stop the sender flooding the network.
+\end{itemize}
+
+\begin{center}
+\begin{tikzpicture}[x=8.5mm,y=7mm]
+  \foreach \i in {1,...,12}{
+    \pgfmathsetmacro{\fc}{\i<4 ? "midgrey!50" : (\i<8 ? "peach" : (\i<11 ? "cream" : "white"))}
+    \draw[fill=\fc] (\i,0) rectangle ++(1,1) node[midway,font=\scriptsize]{\i};
+  }
+  \draw[very thick,brand] (4,-0.15) rectangle (11,1.15);
+  \node[lbl,above] at (7.5,1.15) {window advertised by receiver = 7 segments};
+  \draw[decorate,decoration={brace,mirror,amplitude=4pt}] (1,-0.2) -- (4,-0.2) node[midway,below=4pt,lbl]{sent + ACKed};
+  \draw[decorate,decoration={brace,mirror,amplitude=4pt}] (4,-0.2) -- (8,-0.2) node[midway,below=4pt,lbl]{sent, waiting for ACK};
+  \draw[decorate,decoration={brace,mirror,amplitude=4pt}] (8,-0.2) -- (11,-0.2) node[midway,below=4pt,lbl]{may send now};
+  \draw[decorate,decoration={brace,mirror,amplitude=4pt}] (11,-0.2) -- (13,-0.2) node[midway,below=4pt,lbl]{not yet};
+  \draw[->,thick,brand] (11.2,1.6) -- (12.4,1.6) node[right,lbl]{slides right\\as ACKs arrive};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: TCP sliding window (flow control).}
+\end{center}
+
+\begin{pastq}{2018 Q5a}{6}With the aid of an example explain why TCP is called a reliable protocol.\end{pastq}
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=6mm]
+  \node[node,fill=peach] at (0,0) {Sender};
+  \node[node,fill=brand,text=white] at (8,0) {Receiver};
+  \draw[midgrey,dashed] (0,-0.6) -- (0,-8); \draw[midgrey,dashed] (8,-0.6) -- (8,-8);
+  \draw[msg] (0,-1) -- node[midway,lbl,fill=white]{Seq = 1 (bytes 1--1000)} (8,-1.7);
+  \draw[msg,draw=ink] (8,-1.9) -- node[midway,lbl,fill=white]{ACK = 1001 ``send byte 1001 next''} (0,-2.6);
+  \draw[msg] (0,-3.0) -- (5.0,-3.45);
+  \node[lbl,fill=white] at (2.2,-2.95) {Seq = 1001};
+  \node[font=\bfseries,text=hardc] at (5.3,-3.48) {$\times$};
+  \node[lbl,text=hardc,anchor=west] at (5.6,-3.48) {lost};
+  \draw[msg] (0,-3.9) -- node[midway,lbl,fill=white]{Seq = 2001 (buffered, out of order)} (8,-4.6);
+  \draw[msg,draw=ink] (8,-4.8) -- node[midway,lbl,fill=white]{ACK = 1001 again (duplicate)} (0,-5.5);
+  \draw[decorate,decoration={brace,mirror,amplitude=4pt},hardc] (-0.15,-3.0) -- (-0.15,-5.9) node[midway,left=5pt,lbl,text=hardc]{timer\\expires};
+  \draw[msg,very thick] (0,-6.0) -- node[midway,lbl,fill=white]{RETRANSMIT Seq = 1001} (8,-6.7);
+  \draw[msg,draw=ink] (8,-6.9) -- node[midway,lbl,fill=white]{ACK = 3001: all 3000 bytes in order} (0,-7.6);
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: how TCP recovers a lost segment.}
+\end{center}
+\begin{ans}
+TCP is reliable because it guarantees that data arrives \textbf{complete, error-free and in order}, even though IP below it is best effort.
+\begin{enumerate}
+\item \textbf{Connection set-up}: the 3-way handshake makes sure both sides are ready and agree starting sequence numbers.
+\item \textbf{Sequence numbers} on every byte let the receiver reorder segments and spot gaps or duplicates.
+\item \textbf{Acknowledgements}: the receiver confirms what it got (ACK = next byte expected).
+\item \textbf{Retransmission}: if no ACK comes before the timer expires, the sender resends.
+\item \textbf{Checksum}: a corrupted segment is discarded and so gets resent.
+\item \textbf{Flow and congestion control}: the window stops buffers overflowing, so data is not lost.
+\end{enumerate}
+\textbf{Example} (figure): segment 1001 is lost; the receiver keeps sending ACK 1001; the sender's timer expires and it resends 1001; the receiver then ACKs 3001, so all data arrives in order.
+\end{ans}
+
+%=====================================================================
+\section{Connection management: 3-way handshake and 4-way close}
+
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=6mm]
+  \node[node,fill=peach] at (0,0) {Client};
+  \node[node,fill=brand,text=white] at (8,0) {Server (port 80)};
+  \draw[midgrey,dashed] (0,-0.6) -- (0,-11.3); \draw[midgrey,dashed] (8,-0.6) -- (8,-11.3);
+  \tikzset{st/.style={font=\tiny\bfseries,text=brand!80!ink}}
+  % handshake
+  \node[st,anchor=east] at (-0.15,-1) {SYN-SENT};
+  \node[st,anchor=west] at (8.15,-1) {LISTEN};
+  \draw[msg] (0,-1) -- node[midway,lbl,fill=white]{1. SYN, seq = $x$} (8,-2);
+  \node[st,anchor=west] at (8.15,-2) {SYN-RCVD};
+  \draw[msg] (8,-2) -- node[midway,lbl,fill=white]{2. SYN + ACK, seq = $y$, ack = $x+1$} (0,-3);
+  \node[st,anchor=east] at (-0.15,-3) {ESTABLISHED};
+  \draw[msg] (0,-3) -- node[midway,lbl,fill=white]{3. ACK, ack = $y+1$} (8,-4);
+  \node[st,anchor=west] at (8.15,-4) {ESTABLISHED};
+  % data
+  \draw[fill=cream,draw=midgrey] (0.3,-4.5) rectangle (7.7,-5.5);
+  \node[lbl] at (4,-5) {data transfer in both directions (full duplex)};
+  % close
+  \node[st,anchor=east] at (-0.15,-6) {FIN-WAIT-1};
+  \draw[msg,draw=ink] (0,-6) -- node[midway,lbl,fill=white]{4. FIN} (8,-7);
+  \node[st,anchor=west] at (8.15,-7) {CLOSE-WAIT};
+  \draw[msg,draw=ink] (8,-7) -- node[midway,lbl,fill=white]{5. ACK} (0,-8);
+  \node[st,anchor=east] at (-0.15,-8) {FIN-WAIT-2};
+  \node[st,anchor=west] at (8.15,-8.5) {LAST-ACK};
+  \draw[msg,draw=ink] (8,-8.5) -- node[midway,lbl,fill=white]{6. FIN} (0,-9.5);
+  \node[st,anchor=east] at (-0.15,-9.5) {TIME-WAIT};
+  \draw[msg,draw=ink] (0,-9.5) -- node[midway,lbl,fill=white]{7. ACK} (8,-10.5);
+  \node[st,anchor=west] at (8.15,-10.5) {CLOSED};
+  \node[st,anchor=east] at (-0.15,-11) {CLOSED (after 2 MSL)};
+  % braces
+  \draw[decorate,decoration={brace,amplitude=5pt}] (-2.4,-4.1) -- (-2.4,-0.9) node[midway,left=6pt,lbl,text=brand]{3-way\\hand-\\shake};
+  \draw[decorate,decoration={brace,amplitude=5pt}] (-2.4,-10.6) -- (-2.4,-5.9) node[midway,left=6pt,lbl]{4-way\\close};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: TCP connection set-up and release, with the connection state of each side.}
+\end{center}
+
+\begin{pastq}{2018 Q3c}{6}Describe the TCP 3-way handshake using diagrams.\end{pastq}
+\begin{ans}
+(Draw steps 1--3 of the figure above.) The handshake opens a TCP connection and synchronises sequence numbers in both directions.
+\begin{enumerate}
+\item \textbf{SYN}: the client sends a segment with the SYN flag set and its initial sequence number (ISN $= x$), asking to connect. Client state: SYN-SENT.
+\item \textbf{SYN-ACK}: the server, which was LISTENing, replies with SYN and ACK set: its own ISN ($y$) and ack $= x + 1$, meaning ``I got your SYN and I am ready''.
+\item \textbf{ACK}: the client sends ACK with ack $= y + 1$. Both sides are now ESTABLISHED and full-duplex data transfer can start.
+\end{enumerate}
+\textbf{Why 3 steps}: each side must send its own ISN \emph{and} have it acknowledged; it also confirms both are reachable and agrees MSS and window size. Abuse: a \textbf{SYN flood} attack sends many SYNs and never the final ACK, filling the server with half-open connections.
+\end{ans}
+\sidenote{The SYN and FIN flags each use up one sequence number. That is why the reply is $x+1$, not $x$.}
+
+\begin{keydef}{Connection release (4-way close)}
+TCP is full duplex, so each direction is closed \textbf{separately}: FIN $\to$ ACK one way, FIN $\to$ ACK the other way. Between steps 5 and 6 the server may still send data (half-close).
+The side that closes first waits in \textbf{TIME-WAIT} (2 $\times$ maximum segment lifetime) so a lost final ACK can be resent and old segments die out.
+A connection can also be cut at once with an \textbf{RST} (reset) segment.
+\end{keydef}
+
+%=====================================================================
+\section{DNS: the Domain Name System}
+
+DNS is a \textbf{distributed, hierarchical database} that translates host names (www.hit.ac.zw) into IP addresses, and back (reverse lookup).
+It runs over \textbf{UDP port 53} (TCP 53 for zone transfers and large replies).
+No single server holds all names: each \textbf{zone} is run by its own \textbf{authoritative name server}.
+
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=1cm,
+   dn/.style={draw=ink,fill=cream,rounded corners=2pt,font=\scriptsize,minimum height=5.5mm,minimum width=13mm,align=center}]
+  \node[dn,fill=brand,text=white] (root) at (0,0) {root ( . )};
+  \node[dn,fill=peach] (com) at (-3.6,-1.2) {.com};
+  \node[dn,fill=peach] (org) at (-1.2,-1.2) {.org};
+  \node[dn,fill=peach] (zw)  at (1.4,-1.2) {.zw};
+  \node[dn,fill=peach] (za)  at (3.6,-1.2) {.za};
+  \node[dn] (goog) at (-3.6,-2.4) {google.com};
+  \node[dn] (ac) at (0.4,-2.4) {ac.zw};
+  \node[dn] (co) at (2.4,-2.4) {co.zw};
+  \node[dn,fill=softpeach] (hit) at (0.4,-3.6) {hit.ac.zw};
+  \node[dn,fill=white] (www) at (-0.6,-4.8) {www.hit.ac.zw\\A 196.x.x.x};
+  \node[dn,fill=white] (mail) at (1.5,-4.8) {mail.hit.ac.zw\\MX};
+  \foreach \a/\b in {root/com,root/org,root/zw,root/za,com/goog,zw/ac,zw/co,ac/hit,hit/www,hit/mail}
+    \draw[link] (\a) -- (\b);
+  \node[lbl,anchor=west] at (5.0,0) {\textbf{Root servers} (13 named, A--M)};
+  \node[lbl,anchor=west] at (5.0,-1.2) {\textbf{Top-level domain (TLD)}\\generic + country code};
+  \node[lbl,anchor=west] at (5.0,-2.4) {\textbf{Second level}};
+  \node[lbl,anchor=west] at (5.0,-3.6) {\textbf{Organisation's zone}:\\authoritative server};
+  \node[lbl,anchor=west] at (5.0,-4.8) {\textbf{Hosts} (resource records)};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: the DNS name space is an inverted tree. A full name is read from the leaf up to the root.}
+\end{center}
+
+\begin{center}\small
+\begin{tabular}{llll}
+\toprule
+\textbf{Record} & \textbf{Holds} & \textbf{Record} & \textbf{Holds}\\\midrule
+A & IPv4 address & MX & mail server of the domain\\
+AAAA & IPv6 address & NS & name server of the zone\\
+CNAME & alias (another name) & PTR & IP $\to$ name (reverse)\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{keydef}{Recursive vs iterative queries}
+\textbf{Recursive}: the server asked must return the \emph{final answer} (or an error); it does all the work itself. Used from the client to its local resolver.\\
+\textbf{Iterative}: the server asked returns the best it knows, usually a \emph{referral} (``ask this server next''), and the asker does the next query. Used from the resolver to root, TLD and authoritative servers.
+\end{keydef}
+
+\begin{pastq}{2018 Q2b}{10}Describe in detail how DNS works with particular focus to recursive lookups.\end{pastq}
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \node[node,fill=peach,minimum width=20mm] (c) at (0,0) {Client PC\\{\scriptsize stub resolver}};
+  \node[node,fill=brand,text=white,minimum width=24mm] (r) at (4.6,0) {Local DNS\\resolver (ISP)};
+  \node[node,minimum width=24mm] (root) at (10.8,2.2) {Root server};
+  \node[node,minimum width=24mm] (tld) at (10.8,0) {.zw TLD server};
+  \node[node,minimum width=24mm] (auth) at (10.8,-2.2) {hit.ac.zw\\authoritative};
+  \draw[msg] ([yshift=2mm]c.east) -- node[above,lbl]{1. www.hit.ac.zw?} ([yshift=2mm]r.west);
+  \draw[msg,draw=ink] ([yshift=-2mm]r.west) -- node[below,lbl]{8. 196.x.x.x} ([yshift=-2mm]c.east);
+  \draw[msg] ([yshift=1mm]r.north east) -- node[above,lbl,sloped,pos=0.6]{2. query} ([yshift=-1mm]root.west);
+  \draw[msg,draw=ink] ([yshift=-4mm]root.west) -- node[below,lbl,sloped,pos=0.3]{3. ask .zw} ([yshift=-2mm]r.north east);
+  \draw[msg] ([yshift=2mm]r.east) -- node[above,lbl]{4. query} ([yshift=2mm]tld.west);
+  \draw[msg,draw=ink] ([yshift=-2mm]tld.west) -- node[below,lbl]{5. ask hit.ac.zw NS} ([yshift=-2mm]r.east);
+  \draw[msg] ([yshift=-1mm]r.south east) -- node[below,lbl,sloped,pos=0.6]{6. query} ([yshift=-4mm]auth.west);
+  \draw[msg,draw=ink] ([yshift=1mm]auth.west) -- node[above,lbl,sloped,pos=0.3]{7. A record} ([yshift=2mm]r.south east);
+  \node[note] at (2.2,-1.1) {recursive: ``give me\\the final answer''};
+  \node[note] at (4.6,-1.5) {caches answer\\for its TTL};
+  \node[note] at (7.0,-3.0) {resolver to servers = iterative (referrals)};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: resolving www.hit.ac.zw. Orange arrows = queries, dark arrows = replies.}
+\end{center}
+\begin{ans}
+DNS maps names to IP addresses using a hierarchy of servers: root $\to$ TLD $\to$ authoritative.
+\begin{enumerate}
+\item The user types www.hit.ac.zw. The PC first checks its own \textbf{DNS cache} and \textbf{hosts file}.
+\item If not found, the \textbf{stub resolver} sends a \textbf{recursive query} (UDP 53) to its configured DNS server (ISP or company resolver). Recursive means ``you do all the work and return the final answer or an error''.
+\item The resolver checks its \textbf{cache}; if the name is cached and its TTL has not expired, it answers at once.
+\item Otherwise it asks a \textbf{root server}, which does not know the host but refers it to the \textbf{.zw TLD} servers.
+\item The resolver asks the \textbf{.zw TLD server}, which refers it to the \textbf{name server for hit.ac.zw}.
+\item The resolver asks the \textbf{authoritative server} for hit.ac.zw, which returns the \textbf{A record} (or AAAA for IPv6).
+\item The resolver \textbf{caches} the answer for its TTL, so the next user gets it immediately.
+\item It returns the IP address to the client, which can now open a TCP connection to the web server.
+\item Steps 4--6 are \textbf{iterative} queries (each server gives a referral). Only the client-to-resolver query is recursive. In a \emph{fully recursive} scheme each server would itself ask the next one and pass the answer back down the chain, which loads the root and TLD servers, so they normally refuse recursion.
+\item DNS is \textbf{distributed} (no single point of failure, many root replicas) and secured against spoofing/cache poisoning by \textbf{DNSSEC}.
+\end{enumerate}
+\end{ans}
+\sidenote{Always name the \textbf{three server levels}: root, TLD, authoritative. Then say which query is recursive and which are iterative.}
+
+%=====================================================================
+\section{Application layer services}
+
+\subsection{The web (HTTP)}
+\begin{itemize}
+\item \textbf{HTTP} (TCP 80) / \textbf{HTTPS} (TCP 443, HTTP over TLS): a \textbf{request--response} protocol between a browser (client) and a web server.
+\item Requests use methods \textbf{GET} (fetch a page), \textbf{POST} (send form data), PUT, DELETE. Replies carry a status code: 200 OK, 301 moved, 404 not found, 500 server error.
+\item HTTP is \textbf{stateless}: each request stands alone, so cookies/sessions are used to remember a user. Pages are named by a \textbf{URL} (protocol://host/path) and written in HTML.
+\end{itemize}
+
+\subsection{File transfer (FTP)}
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \node[node,fill=peach,minimum width=26mm,minimum height=16mm] (c) at (0,0) {FTP client\\{\scriptsize user interface}\\{\scriptsize control + data process}};
+  \node[node,fill=brand,text=white,minimum width=26mm,minimum height=16mm] (s) at (10,0) {FTP server\\{\scriptsize control process}\\{\scriptsize data process}};
+  \draw[<->,thick,ink] ([yshift=4mm]c.east) -- node[above,lbl]{\textbf{control connection}, TCP port \textbf{21}} node[below,note]{whole session: USER, PASS, RETR, STOR, QUIT} ([yshift=4mm]s.west);
+  \draw[<->,thick,brand,dashed] ([yshift=-5mm]c.east) -- node[below,lbl]{\textbf{data connection}, TCP port \textbf{20}: one per file / listing} ([yshift=-5mm]s.west);
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: FTP uses two TCP connections (``out-of-band'' control).}
+\end{center}
+\begin{itemize}
+\item \textbf{Active mode}: the server opens the data connection from its port 20 to the client. \textbf{Passive mode}: the client opens it to a port the server names (works through firewalls/NAT).
+\item Transfer modes: ASCII (text) and binary (image). FTP sends the password in \textbf{plain text}; secure versions are \textbf{SFTP} (over SSH) and \textbf{FTPS} (over TLS).
+\item \textbf{TFTP} (UDP 69): trivial FTP, no login, no listing; used to load router images and configs. \textbf{FTAM} is the OSI File Transfer, Access and Management service.
+\end{itemize}
+
+\subsection{Electronic mail (SMTP, POP3, IMAP)}
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \node[node,fill=peach,minimum width=20mm] (ua1) at (0,0) {Sender's\\user agent};
+  \node[node,fill=brand,text=white,minimum width=22mm] (m1) at (3.9,0) {Sender's mail\\server (MTA)};
+  \node[node,fill=brand,text=white,minimum width=22mm] (m2) at (8.2,0) {Receiver's mail\\server + mailbox};
+  \node[node,fill=peach,minimum width=20mm] (ua2) at (12.0,0) {Receiver's\\user agent};
+  \draw[msg] (ua1) -- node[above,lbl]{\textbf{SMTP}} node[below,note]{push, 587/25} (m1);
+  \draw[msg] (m1) -- node[above,lbl]{\textbf{SMTP}} node[below,note]{push, TCP 25} (m2);
+  \draw[msg,draw=ink] (m2) -- node[above,lbl]{\textbf{POP3 / IMAP}} node[below,note]{pull, 110 / 143} (ua2);
+  \node[note] at (6.05,-1.1) {DNS MX lookup finds the receiver's mail server};
+  \draw[decorate,decoration={brace,amplitude=4pt}] (-1,0.65) -- (9.5,0.65) node[midway,above=4pt,lbl]{message \textbf{transfer}: push protocols};
+  \draw[decorate,decoration={brace,amplitude=4pt}] (9.6,0.65) -- (13.0,0.65) node[midway,above=4pt,lbl]{message \textbf{access}: pull};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: how an e-mail travels. SMTP pushes it to the mailbox; the receiver pulls it with POP3 or IMAP.}
+\end{center}
+\begin{itemize}
+\item \textbf{User agent (UA)}: the mail program (Outlook, Gmail app) used to write and read mail. \textbf{Message transfer agent (MTA)}: the mail server software that relays mail. \textbf{Mailbox}: where mail waits on the server.
+\item \textbf{SMTP} (TCP 25, 587 for client submission): \textbf{sends/pushes} mail from client to server and server to server. Commands HELO, MAIL FROM, RCPT TO, DATA, QUIT. 7-bit ASCII only, so \textbf{MIME} encodes attachments, images and non-English text.
+\item \textbf{POP3} (TCP 110, 995 secure): \textbf{downloads} mail to one device and usually \textbf{deletes} it from the server. Simple; mail can be read offline.
+\item \textbf{IMAP} (TCP 143, 993 secure): mail \textbf{stays on the server}; folders, read/unread flags and deletions are \textbf{synchronised} on every device; can fetch headers only.
+\end{itemize}
+
+\subsection{Virtual terminals and remote login (Telnet, SSH)}
+Terminals differ (keyboard codes, screen size, line endings). A \textbf{network virtual terminal (NVT)} is a standard imaginary terminal: each side translates its local terminal to and from the NVT, so any terminal can log in to any host.
+\begin{center}\small
+\begin{tabular}{lll}
+\toprule
+ & \textbf{Telnet} & \textbf{SSH}\\\midrule
+Port & TCP 23 & TCP 22\\
+Security & Plain text: password can be sniffed & Encrypted session, server authentication, keys\\
+Extra features & Remote command line only & Also file transfer (SCP/SFTP), port forwarding\\
+Use today & Testing a port, old devices, labs & Remote admin of servers, routers, switches\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{pastq}{SE2024 Q5c}{4}The internet offers a variety of services to users. List and explain any four.\end{pastq}
+\begin{ans}
+\begin{enumerate}
+\item \textbf{World Wide Web} (HTTP/HTTPS): browsing linked web pages and online services, e.g.\ e-learning portals.
+\item \textbf{Electronic mail} (SMTP, POP3, IMAP): sending and receiving messages and attachments to any mailbox in the world.
+\item \textbf{File transfer} (FTP/SFTP): uploading and downloading files between computers, e.g.\ updating a website.
+\item \textbf{Remote login} (Telnet/SSH): using a distant computer's command line as if sitting at it.
+\end{enumerate}
+Others: DNS (name look-up), VoIP and video calls, instant messaging, streaming, cloud storage, e-commerce/online banking.
+\end{ans}
+
+%=====================================================================
+\section{Session and presentation layers: RPC and compression}
+
+\textbf{Session layer} (the ``network dialog controller''): sets up, manages and ends sessions; \textbf{dialog control} (who talks when, half or full duplex); \textbf{synchronisation} by inserting checkpoints, so a 100\,MB transfer that fails at 90\,MB restarts from the last checkpoint, not from zero.
+\textbf{Presentation layer}: \textbf{translation} (ASCII/EBCDIC/Unicode, byte order), \textbf{encryption} and \textbf{compression}.
+
+\subsection{Remote Procedure Call (RPC)}
+RPC lets a program call a procedure on a remote machine \textbf{as if it were a local call}. The network details are hidden by two \textbf{stubs}.
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \tikzset{bx/.style={node,minimum width=34mm,minimum height=7mm}}
+  \node[bx,fill=peach] (cp) at (0,0) {Client program};
+  \node[bx] (cs) at (0,-1.5) {Client stub};
+  \node[bx,fill=midgrey!40] (co) at (0,-3.0) {Client OS / transport};
+  \node[bx,fill=brand,text=white] (sp) at (8,0) {Server procedure};
+  \node[bx] (ss) at (8,-1.5) {Server stub};
+  \node[bx,fill=midgrey!40] (so) at (8,-3.0) {Server OS / transport};
+  \draw[msg] ([xshift=-6mm]cp.south) -- node[left,lbl]{1. local call\\add(a,b)} ([xshift=-6mm]cs.north);
+  \draw[msg] ([xshift=-6mm]cs.south) -- node[left,lbl]{2. marshal\\(pack) params} ([xshift=-6mm]co.north);
+  \draw[msg] ([yshift=1mm]co.east) -- node[above,lbl]{3. request message over network} ([yshift=1mm]so.west);
+  \draw[msg] ([xshift=6mm]so.north) -- node[right,lbl]{4. pass up} ([xshift=6mm]ss.south);
+  \draw[msg] ([xshift=6mm]ss.north) -- node[right,lbl]{5. unmarshal,\\call procedure} ([xshift=6mm]sp.south);
+  \draw[msg,draw=ink,dashed] ([xshift=-6mm]sp.south) -- node[left,lbl]{6. result} ([xshift=-6mm]ss.north);
+  \draw[msg,draw=ink,dashed] ([xshift=-6mm]ss.south) -- node[left,lbl]{7. marshal} ([xshift=-6mm]so.north);
+  \draw[msg,draw=ink,dashed] ([yshift=-2mm]so.west) -- node[below,lbl]{8. reply message} ([yshift=-2mm]co.east);
+  \draw[msg,draw=ink,dashed] ([xshift=6mm]co.north) -- node[right,lbl]{9. unmarshal} ([xshift=6mm]cs.south);
+  \draw[msg,draw=ink,dashed] ([xshift=6mm]cs.north) -- node[right,lbl]{10. return} ([xshift=6mm]cp.south);
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: an RPC call (solid) and its return (dashed). The client is blocked until step 10.}
+\end{center}
+\begin{itemize}
+\item \textbf{Marshalling}: packing the procedure name and parameters into a message in a standard format (e.g.\ XDR), so machines with different data formats understand it.
+\item The call is normally \textbf{synchronous}: the client waits. Problems: no shared memory (no pointers), and the network or server may fail, so calls need timeouts and retries.
+\item Examples: Sun RPC (used by NFS), Java RMI, gRPC, Microsoft RPC/DCOM.
+\end{itemize}
+
+\subsection{Data compression}
+Compression reduces the number of bits, so transfers are faster and need less bandwidth and storage.
+\textbf{Lossless}: the original is recovered exactly (text, programs): RLE, Huffman, LZW (ZIP, GIF, PNG).
+\textbf{Lossy}: some detail the eye or ear will not miss is thrown away, for much smaller files: JPEG (images), MPEG/MP4 (video), MP3 (audio).
+
+\textbf{Run-length encoding (RLE)}: a run of repeated symbols is replaced by a count and the symbol.
+\begin{working}[RLE example]
+\begin{align*}
+\text{AAAABBBCCDAA} &\to \text{4A 3B 2C 1D 2A} && \cmt{12 symbols become 10}\\
+\text{ABCDEF} &\to \text{1A1B1C1D1E1F} && \cmt{no runs: output doubles!}
+\end{align*}
+\end{working}
+RLE only helps when there are long runs (fax pages, simple graphics, bitmaps with large one-colour areas).
+
+\textbf{Huffman coding}: frequent symbols get \textbf{short} codes, rare symbols \textbf{long} codes. No code is the start of another (\textbf{prefix code}), so the bit stream decodes without separators.
+\begin{working}[Huffman worked example: 39 symbols, A 15, B 7, C 6, D 6, E 5]
+\begin{align*}
+&\text{Sort: E5, C6, D6, B7, A15} && \cmt{always join the two smallest}\\
+&\text{E5 + D6} = 11 && \cmt{tie C6/D6: either choice is valid}\\
+&\text{C6 + B7} = 13\\
+&11 + 13 = 24\\
+&\text{A15} + 24 = 39 \ \text{(root)}\\
+&\text{Codes: A = 0, D = 100, E = 101, C = 110, B = 111} && \cmt{left 0, right 1}\\
+&\text{Bits} = 15(1) + 6(3) + 5(3) + 6(3) + 7(3) = \mathbf{87} && \cmt{frequency $\times$ length}\\
+&\text{Fixed 3-bit code} = 39 \times 3 = 117;\quad \text{ASCII} = 39 \times 8 = 312\\
+&\text{Average} = 87 / 39 = \mathbf{2.23} \text{ bits/symbol}\\
+&\text{Saving vs 3-bit code} = 30/117 \approx \mathbf{26\%}
+\end{align*}
+\end{working}
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=1cm,
+   inn/.style={circle,draw=ink,fill=cream,minimum size=8mm,font=\scriptsize},
+   leaf/.style={draw=ink,fill=peach,rounded corners=2pt,minimum width=11mm,minimum height=6mm,font=\scriptsize\bfseries},
+   bit/.style={font=\scriptsize\bfseries,text=brand,fill=white,inner sep=1pt}]
+  \node[inn] (r) at (0,0) {39};
+  \node[leaf] (a) at (-2.8,-1.3) {A 15};
+  \node[inn] (n24) at (2.4,-1.3) {24};
+  \node[inn] (n11) at (0.6,-2.6) {11};
+  \node[inn] (n13) at (4.2,-2.6) {13};
+  \node[leaf] (d) at (-0.3,-3.9) {D 6};
+  \node[leaf] (e) at (1.5,-3.9) {E 5};
+  \node[leaf] (c) at (3.3,-3.9) {C 6};
+  \node[leaf] (b) at (5.1,-3.9) {B 7};
+  \draw[link] (r) -- node[bit]{0} (a);
+  \draw[link] (r) -- node[bit]{1} (n24);
+  \draw[link] (n24) -- node[bit]{0} (n11);
+  \draw[link] (n24) -- node[bit]{1} (n13);
+  \draw[link] (n11) -- node[bit]{0} (d);
+  \draw[link] (n11) -- node[bit]{1} (e);
+  \draw[link] (n13) -- node[bit]{0} (c);
+  \draw[link] (n13) -- node[bit]{1} (b);
+  \foreach \n/\code in {a/0,d/100,e/101,c/110,b/111}
+    \node[lbl,below=1mm] at (\n.south) {\texttt{\code}};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: Huffman tree for the example. The most frequent symbol (A) is nearest the root.}
+\end{center}
+\sidenote{Huffman needs the \textbf{frequency table} (or the tree) sent with the data, or the receiver cannot decode.}
+
+\textbf{LZW (Lempel--Ziv--Welch)}: a \textbf{dictionary} method. It starts with single characters, adds every new string it meets to the dictionary, and sends the dictionary \emph{index} instead of the string. The receiver rebuilds the same dictionary, so the dictionary is never sent. Used in GIF, TIFF and Unix \texttt{compress}.
+\begin{working}[LZW example: encode ABABABA, start dictionary A = 1, B = 2]
+\begin{align*}
+w = \text{A},\ \text{next B}: \text{AB new} &\Rightarrow \text{output } \mathbf{1},\ \text{add AB} = 3 && \cmt{output the longest known string}\\
+w = \text{B},\ \text{next A}: \text{BA new} &\Rightarrow \text{output } \mathbf{2},\ \text{add BA} = 4\\
+w = \text{AB},\ \text{next A}: \text{ABA new} &\Rightarrow \text{output } \mathbf{3},\ \text{add ABA} = 5 && \cmt{AB was already known}\\
+w = \text{ABA},\ \text{end} &\Rightarrow \text{output } \mathbf{5}\\
+\text{Result: } 1\ 2\ 3\ 5 & \quad (\text{7 symbols} \to \text{4 codes})
+\end{align*}
+\end{working}
+
+%=====================================================================
+\section{Troubleshooting, lab commands and cabling}
+
+\begin{center}\small
+\begin{tabularx}{\linewidth}{@{}>{\ttfamily}lX@{}}
+\toprule
+\textrm{\textbf{Command}} & \textbf{What it does}\\\midrule
+ipconfig /all & IP address, mask, default gateway, DNS servers, MAC, DHCP lease. \texttt{/release}, \texttt{/renew}, \texttt{/flushdns}\\
+hostname & Shows the computer's name\\
+ping <ip|name> & Sends ICMP Echo Requests; shows reachability, round-trip time and packet loss\\
+tracert <ip> & Lists every router (hop) to the destination using increasing TTL; shows where packets stop\\
+netstat -an & Active TCP/UDP connections and listening ports (spot unknown connections)\\
+nslookup <name> & Queries DNS directly: is the name resolved, by which server?\\
+arp -a & ARP cache: IP-to-MAC mappings on the LAN\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{pastq}{2018 Q2c}{10}A co-worker calls the help desk complaining about her PC not going to the internet. Outline the procedure you would take in troubleshooting this problem.\end{pastq}
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=1cm,
+   stp/.style={draw=ink,fill=cream,rounded corners=2pt,font=\scriptsize,minimum width=52mm,minimum height=6mm,align=center},
+   fx/.style={font=\scriptsize,text=hardc,anchor=west,align=left}]
+  \foreach \tx/\fixit [count=\i from 0] in {
+     {1. Ask: only her? what changed? error?}/{many users: escalate to network/ISP},
+     {2. Physical: cable, link lights, Wi-Fi on}/{replace cable / port, join right SSID},
+     {3. \texttt{ipconfig /all}: IP, mask, gateway, DNS}/{169.254.x.x = DHCP failed: \texttt{/release}, \texttt{/renew}},
+     {4. \texttt{ping 127.0.0.1} (loopback)}/{reset TCP/IP stack, reinstall NIC driver},
+     {5. \texttt{ping} default gateway}/{LAN, switch port or VLAN fault},
+     {6. \texttt{ping 8.8.8.8}, \texttt{tracert 8.8.8.8}}/{router, firewall or ISP fault (see last hop)},
+     {7. \texttt{nslookup www.google.com}}/{DNS fault: fix DNS server, \texttt{/flushdns}},
+     {8. Browser: proxy, firewall, malware}/{fix settings, scan, try another browser}}{
+    \node[stp] (s\i) at (0,-0.85*\i) {\tx};
+    \node[fx] at (3.2,-0.85*\i) {fails $\Rightarrow$ \fixit};
+  }
+  \foreach \i [evaluate=\i as \j using int(\i+1)] in {0,...,6}
+    \draw[->,thick,brand] (s\i.south) -- (s\j.north);
+  \node[note] at (0,-6.6) {passes $\Downarrow$ go to the next layer up};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: bottom-up (OSI layer 1 $\to$ 7) troubleshooting flow.}
+\end{center}
+\begin{ans}
+Use a structured \textbf{bottom-up OSI} approach and test one thing at a time.
+\begin{enumerate}
+\item \textbf{Gather information}: what exactly fails, any error message, what changed, is it only her PC or everyone? Many users = a network/ISP problem, escalate.
+\item \textbf{Physical layer}: check the cable is plugged in and NIC link lights are on, or that Wi-Fi is on and connected to the right SSID. Try another cable/port.
+\item \textbf{IP configuration}: run \texttt{ipconfig /all}. Is there a valid IP, mask, gateway and DNS? A \textbf{169.254.x.x} (APIPA) address means DHCP failed: \texttt{ipconfig /release} then \texttt{/renew}, check the DHCP server.
+\item \textbf{TCP/IP stack}: \texttt{ping 127.0.0.1}. If it fails, reset the stack (\texttt{netsh int ip reset}) or reinstall the NIC driver.
+\item \textbf{Local network}: \texttt{ping} the default gateway. If it fails, suspect the switch port, VLAN or wrong subnet/gateway setting.
+\item \textbf{Beyond the gateway}: \texttt{ping 8.8.8.8}. If it fails, run \texttt{tracert 8.8.8.8} to see which hop stops: router, firewall or ISP.
+\item \textbf{DNS}: if IP addresses work but names do not, use \texttt{nslookup}; correct the DNS server and run \texttt{ipconfig /flushdns}.
+\item \textbf{Application}: check browser proxy settings, firewall/antivirus rules, malware; try another browser.
+\item \textbf{Compare} with a working colleague's PC to isolate the fault.
+\item \textbf{Fix, verify and document}: confirm with the user that the Internet works, and record the problem and solution.
+\end{enumerate}
+\end{ans}
+\sidenote{Each \texttt{ping} test tells you which \emph{half} of the path is broken: loopback (the PC), gateway (the LAN), 8.8.8.8 (the WAN), a name (DNS).}
+
+\subsection{UTP cables: straight-through vs crossover}
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=1cm,
+   pin/.style={draw=ink,minimum width=14mm,minimum height=4.6mm,font=\tiny,inner sep=1pt}]
+  \def\colB{{"W-Or","Or","W-Gr","Bl","W-Bl","Gr","W-Br","Br"}}
+  \def\colA{{"W-Gr","Gr","W-Or","Bl","W-Bl","Or","W-Br","Br"}}
+  % straight-through
+  \node[lbl] at (0,0.6) {\textbf{End A: T568B}};
+  \node[lbl] at (4,0.6) {\textbf{End B: T568B}};
+  \foreach \i in {1,...,8}{
+    \pgfmathsetmacro{\lab}{\colB[\i-1]}
+    \pgfmathsetmacro{\fc}{(\i==1 || \i==2) ? "peach" : ((\i==3 || \i==6) ? "midgrey!40" : "white")}
+    \node[pin,fill=\fc] (L\i) at (0,-0.5*\i+0.5) {\i\ \lab};
+    \node[pin,fill=\fc] (R\i) at (4,-0.5*\i+0.5) {\i\ \lab};
+    \draw[ink] (L\i.east) -- (R\i.west);
+  }
+  \node[lbl] at (2,-4.3) {\textbf{Straight-through}: pin 1 $\to$ 1 \dots{} 8 $\to$ 8\\unlike devices: PC--switch, switch--router};
+  % crossover
+  \begin{scope}[xshift=7.2cm]
+  \node[lbl] at (0,0.6) {\textbf{End A: T568B}};
+  \node[lbl] at (4,0.6) {\textbf{End B: T568A}};
+  \foreach \i in {1,...,8}{
+    \pgfmathsetmacro{\lab}{\colB[\i-1]}
+    \pgfmathsetmacro{\fc}{(\i==1 || \i==2) ? "peach" : ((\i==3 || \i==6) ? "midgrey!40" : "white")}
+    \pgfmathsetmacro{\labA}{\colA[\i-1]}
+    \pgfmathsetmacro{\fcA}{(\i==3 || \i==6) ? "peach" : ((\i==1 || \i==2) ? "midgrey!40" : "white")}
+    \node[pin,fill=\fc] (L\i) at (0,-0.5*\i+0.5) {\i\ \lab};
+    \node[pin,fill=\fcA] (R\i) at (4,-0.5*\i+0.5) {\i\ \labA};
+  }
+  \foreach \a/\b in {1/3,2/6,3/1,6/2} \draw[brand,thick] (L\a.east) -- (R\b.west);
+  \foreach \a in {4,5,7,8} \draw[ink] (L\a.east) -- (R\a.west);
+  \node[lbl] at (2,-4.3) {\textbf{Crossover}: 1 $\leftrightarrow$ 3, 2 $\leftrightarrow$ 6 (TX to RX)\\like devices: PC--PC, switch--switch, router--router, PC--router};
+  \end{scope}
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: RJ-45 pinouts. Orange pair (peach) and green pair (grey) carry data in 10/100 Mb/s Ethernet; the colour of each wire stays the same end to end.}
+\end{center}
+\begin{itemize}
+\item \textbf{Rule}: \emph{unlike} devices (different layers) $\to$ straight-through; \emph{like} devices $\to$ crossover. A PC and a router both transmit on pins 1--2, so they also need a crossover.
+\item Modern switches have \textbf{Auto-MDI/MDIX} and fix the wrong cable themselves. A \textbf{rollover (console)} cable (pins 1--8 reversed) connects a PC to a router's console port.
+\item \textbf{Cisco Packet Tracer}: a network simulator used in the labs to build topologies, pick cables (the lightning icon picks automatically), configure IP addresses and routers, and use \textbf{Simulation mode} to watch PDUs (ARP, ICMP, DNS, TCP) move hop by hop.
+\end{itemize}
+
+%=====================================================================
+\section{Practice questions}
+\setcounter{pq}{0}
+
+\begin{practice}{easy}{3}Give the port number and transport protocol used by: HTTP, HTTPS, SSH, SMTP, DNS, and FTP (both ports).
+\sol HTTP TCP 80; HTTPS TCP 443; SSH TCP 22; SMTP TCP 25; DNS UDP 53; FTP TCP 21 (control) and 20 (data).
+\end{practice}
+
+\begin{practice}{easy}{3}Define a \emph{socket} and explain why port numbers are needed at the transport layer.
+\sol A socket is the combination of an \textbf{IP address and a port number} (e.g.\ 10.0.0.5:80); a pair of sockets identifies one connection. The IP address only finds the host; many processes run on that host, so the 16-bit port number identifies the \textbf{process} that should receive the data (process-to-process delivery, multiplexing).
+\end{practice}
+
+\begin{practice}{easy}{4}Distinguish between POP3 and IMAP.
+\sol POP3 (TCP 110) \textbf{downloads} mail to one device and usually deletes it from the server; simple, good for offline reading on one PC. IMAP (TCP 143) keeps mail \textbf{on the server} and synchronises folders, flags and deletions across all devices; can download headers only. Both are \emph{pull} (access) protocols; SMTP is used to send.
+\end{practice}
+
+\begin{practice}{easy}{4}State the cable type (straight-through or crossover) for: (a) PC to switch (b) switch to switch (c) PC to PC (d) router to switch.
+\sol (a) straight-through (b) crossover (c) crossover (d) straight-through. Rule: unlike devices straight, like devices crossover.
+\end{practice}
+
+\begin{practice}{medium}{5}Compress \texttt{WWWWWWBBBWWWWBWW} using run-length encoding. Give the compression ratio and one weakness of RLE.
+\sol
+\begin{working}
+\begin{align*}
+\text{WWWWWW BBB WWWW B WW} &\to \text{6W 3B 4W 1B 2W} && \cmt{count each run}\\
+16 \text{ symbols} &\to 10 \text{ symbols}\\
+\text{ratio} &= 16 : 10 = \mathbf{1.6 : 1} && \cmt{37.5\% smaller}
+\end{align*}
+\end{working}
+Weakness: data with few runs (e.g.\ normal text ``ABCD'') gets \textbf{longer} (1A1B1C1D).
+\end{practice}
+
+\begin{practice}{medium}{6}Explain how a Remote Procedure Call (RPC) works. Name the layer it belongs to.
+\sol RPC belongs to the \textbf{session layer}. (1) The client program makes an ordinary local call to the \textbf{client stub}. (2) The stub \textbf{marshals} the procedure name and parameters into a message. (3) The client OS sends it across the network. (4) The \textbf{server stub} receives it and unmarshals the parameters. (5) It calls the real procedure on the server. (6) The result returns the same way and the client stub returns it to the program, which was blocked waiting. The programmer never sees the network. Examples: Sun RPC/NFS, Java RMI, gRPC.
+\end{practice}
+
+\begin{practice}{medium}{6}Why does FTP use two TCP connections? Distinguish active and passive FTP.
+\sol FTP separates \textbf{control} and \textbf{data} (out-of-band control): the control connection (port 21) stays open for the whole session carrying commands (USER, PASS, RETR, STOR) and replies, while a new \textbf{data connection} (port 20) is opened for each file or directory listing and closed afterwards. Commands can be sent (e.g.\ abort) while a file is transferring. \textbf{Active}: the server opens the data connection from port 20 to a port the client gives (PORT); often blocked by client firewalls/NAT. \textbf{Passive}: the client asks with PASV and opens the data connection to a port the server names; works through firewalls.
+\end{practice}
+
+\begin{practice}{medium}{6}With a diagram, explain how a TCP connection is released. Why is the close four steps, not three?
+\sol Draw steps 4--7 of the handshake figure. (1) The client sends \textbf{FIN} (FIN-WAIT-1). (2) The server replies \textbf{ACK} (CLOSE-WAIT); the client$\to$server direction is now closed but the server can still send data (\textbf{half-close}). (3) When finished, the server sends its own \textbf{FIN} (LAST-ACK). (4) The client sends the final \textbf{ACK} and waits in \textbf{TIME-WAIT} for 2 MSL so a lost ACK can be resent. Four steps because TCP is full duplex: each direction is closed separately and the server's ACK and FIN are usually sent at different times.
+\end{practice}
+
+\begin{practice}{hard}{12}A message of 20 symbols has frequencies A 10, B 6, C 2, D 1, E 1. (a) Build the Huffman tree and give each code. (b) Find the total number of bits and compare with a fixed-length code and with 8-bit ASCII. (c) Decode \texttt{0101100}.
+\sol
+\begin{working}
+\begin{align*}
+\text{D1 + E1} &= 2 && \cmt{join the two smallest}\\
+2 + \text{C2} &= 4\\
+4 + \text{B6} &= 10\\
+10 + \text{A10} &= 20 \ \text{(root)}\\
+\text{Codes} &: \text{A = 0, B = 10, C = 110, D = 1110, E = 1111}\\
+\text{Bits} &= 10(1) + 6(2) + 2(3) + 1(4) + 1(4) = \mathbf{36} && \cmt{frequency $\times$ code length}\\
+\text{Fixed} &= 20 \times 3 = 60 \text{ bits} && \cmt{5 symbols need 3 bits}\\
+\text{ASCII} &= 20 \times 8 = 160 \text{ bits}\\
+\text{Saving} &= (60-36)/60 = \mathbf{40\%} \text{ vs fixed}\\
+\text{Saving} &= (160-36)/160 = 77.5\% \text{ vs ASCII}\\
+\text{Average} &= 36/20 = 1.8 \text{ bits/symbol}
+\end{align*}
+\end{working}
+(c) \texttt{0 | 10 | 110 | 0} $\Rightarrow$ \textbf{A B C A}. It decodes uniquely because no code is a prefix of another.
+\end{practice}
+
+\begin{practice}{hard}{10}With the aid of a diagram, describe how an e-mail sent by a Gmail user reaches a HIT student who reads it on both a phone and a laptop. Name every protocol and component.
+\sol Draw the e-mail flow figure. (1) The sender writes the mail in a \textbf{user agent} (Gmail app/browser). (2) The UA \textbf{submits} it with \textbf{SMTP} (port 587, TLS) to Gmail's mail server (\textbf{MTA}). (3) The MTA does a \textbf{DNS MX lookup} for hit.ac.zw to find the receiving mail server. (4) It \textbf{relays} the message with \textbf{SMTP} (TCP 25) to HIT's mail server. (5) The HIT server stores it in the student's \textbf{mailbox}. (6) Attachments travel as \textbf{MIME}-encoded text because SMTP is 7-bit ASCII. (7) The student's phone and laptop \textbf{pull} the mail with \textbf{IMAP} (143/993). (8) IMAP is the right choice because mail stays on the server and read/deleted flags \textbf{sync on both devices}; POP3 would download it to one device and delete it. (9) SMTP is a \textbf{push} protocol, POP3/IMAP are \textbf{pull/access} protocols. (10) All run over TCP for reliable delivery.
+\end{practice}
+
+\begin{practice}{hard}{10}(a) Encode \texttt{TOBETOBE} with LZW, starting with the dictionary B = 1, E = 2, O = 3, T = 4. (b) Compare lossless and lossy compression, giving two examples of each and a suitable use.
+\sol
+\begin{working}
+\begin{align*}
+\text{T, next O} &\Rightarrow \text{out } 4,\ \text{TO} = 5 && \cmt{TO not yet known}\\
+\text{O, next B} &\Rightarrow \text{out } 3,\ \text{OB} = 6\\
+\text{B, next E} &\Rightarrow \text{out } 1,\ \text{BE} = 7\\
+\text{E, next T} &\Rightarrow \text{out } 2,\ \text{ET} = 8\\
+\text{TO, next B} &\Rightarrow \text{out } 5,\ \text{TOB} = 9 && \cmt{TO is in the dictionary now}\\
+\text{BE, end} &\Rightarrow \text{out } 7\\
+\text{Output: } & 4\ 3\ 1\ 2\ 5\ 7 \quad (8 \text{ symbols} \to 6 \text{ codes})
+\end{align*}
+\end{working}
+(b) \textbf{Lossless}: the original is rebuilt bit for bit; lower ratio (about 2:1); needed for text, programs, bank data, medical images. Examples: Huffman, LZW (ZIP, GIF, PNG), RLE. \textbf{Lossy}: removes detail people do not notice (psycho-visual/acoustic models, DCT); high ratios (10:1 to 100:1) but the original cannot be recovered; used for photos, video and music streaming. Examples: JPEG, MPEG/MP4, MP3. Choose lossless when every bit matters and lossy when bandwidth matters more than perfect quality.
+\end{practice}
+
+%=====================================================================
+\newpage
+\begin{cheatsheet}
+\small
+\begin{tabularx}{\linewidth}{@{}XX@{}}
+\textbf{Transport layer}
+\begin{itemize}
+\item Process-to-process delivery; segments with sequence numbers
+\item Port = 16 bits; socket = IP + port
+\item Design issues: addressing, connect, release, flow control, multiplexing, error control, crash recovery
+\end{itemize}
+\textbf{TCP}: connection-oriented, reliable, ordered, flow + congestion control, 20--60 B header, unicast. HTTP, FTP, SMTP, SSH.\par
+\textbf{UDP}: connectionless, best effort, 8 B header (src port, dst port, length, checksum), fast, broadcast/multicast. DNS, DHCP, VoIP, TFTP.
+
+\textbf{Reliability}: seq numbers, ACK = next byte expected, retransmit on timeout / 3 dup ACKs, checksum, sliding window.
+
+\textbf{Handshake}: SYN ($x$) $\to$ SYN+ACK ($y$, $x{+}1$) $\to$ ACK ($y{+}1$).
+\textbf{Close}: FIN, ACK, FIN, ACK; TIME-WAIT 2 MSL.
+
+\textbf{DNS} UDP 53: root $\to$ TLD $\to$ authoritative. Client$\to$resolver \textbf{recursive}; resolver$\to$servers \textbf{iterative} (referrals). Cache by TTL. A, AAAA, CNAME, MX, NS, PTR.
+
+\textbf{TCP header}: src port, dst port, seq, ack, HLEN, flags (URG ACK PSH RST SYN FIN), window, checksum, urgent pointer, options.
+\textbf{UDP header}: src port, dst port, length, checksum (8 B).
+
+\textbf{Session layer}: dialog control, checkpoints (synchronisation), RPC.
+\textbf{Presentation}: translation, encryption, compression.
+
+\textbf{Say it}: TCP = phone call, UDP = posted letter.
+&
+\textbf{Ports}: FTP 20/21, SSH 22, Telnet 23, SMTP 25, DNS 53, DHCP 67/68, TFTP 69, HTTP 80, POP3 110, IMAP 143, SNMP 161, HTTPS 443.
+
+\textbf{E-mail}: UA $\to$ SMTP $\to$ MTA $\to$ SMTP $\to$ mailbox $\to$ POP3 (download, delete) / IMAP (stay, sync). MIME for attachments.
+
+\textbf{HTTP} 80 / HTTPS 443: request--response, GET/POST, stateless, 200 OK / 404.
+
+\textbf{FTP}: control 21 (whole session), data 20 (per file); active vs passive.
+\textbf{Telnet} 23 plain text, \textbf{SSH} 22 encrypted; NVT.
+
+\textbf{RPC}: call $\to$ client stub marshals $\to$ network $\to$ server stub unmarshals $\to$ procedure; result back.
+
+\textbf{Compression}: lossless RLE (4A3B), Huffman (join 2 smallest, short codes for frequent), LZW (dictionary); lossy JPEG, MPEG, MP3.
+
+\textbf{Troubleshoot}: ask $\to$ cable $\to$ \texttt{ipconfig /all} (169.254 = DHCP fail) $\to$ ping 127.0.0.1 $\to$ ping gateway $\to$ ping 8.8.8.8 / tracert $\to$ nslookup $\to$ browser.
+
+\textbf{Commands}: ipconfig /all, hostname, ping, tracert (TTL), netstat -an, nslookup, arp -a.
+
+\textbf{Cables}: unlike = straight (B--B); like = crossover (B--A, 1$\leftrightarrow$3, 2$\leftrightarrow$6). T568B: W-Or, Or, W-Gr, Bl, W-Bl, Gr, W-Br, Br.
+\end{tabularx}
+\end{cheatsheet}
+
+\end{document}

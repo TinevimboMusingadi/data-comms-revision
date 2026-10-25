@@ -1,0 +1,888 @@
+\documentclass[10pt]{article}
+\usepackage{dcn}
+\usepackage{needspace}
+\begin{document}
+
+\packtitle{06}{Routing, Congestion Control, QoS, SDN \& WANs}
+  {Course outline weeks 5--7: point-to-point networks, routing, congestion control, internetworking}{HIGH}
+
+In 2023 a \hl{whole 25-mark question} (Q2) was routing and QoS, and every paper since has had at least one 5--10 mark part from this pack.
+The questions are mostly ``explain / compare / tabulate'', so learn the tables, the two algorithms and the diagrams.
+
+\subsection*{How often this topic is examined}
+\begin{tabularx}{\linewidth}{@{}Xll@{}}
+\toprule
+\textbf{Question asked} & \textbf{Paper(s)} & \textbf{Marks}\\
+\midrule
+Three sources of routing-table information & 2023 Q2a & 3\\
+Link-state vs distance-vector (tabulate) & 2023 Q2b & 6\\
+Complete Table 1: RIPv1 / EIGRP / OSPF, type \& metric & 2023 Q2c & 6\\
+How EIGRP works and selects the best path & 2023 Q2d & 5\\
+How RIP v2 works & ISA2024 Q5c & 6\\
+Congestion control + two mechanisms & 2025 Q3c & 10\\
+``Best effort network'' & 2023 Q3d & 4\\
+Three QoS parameters & 2023 Q3e & 6\\
+QoS of VoIP vs video & 2023 Q2e & 5\\
+Network performance optimisation (scenario) & ISA2024 Q4d & 7\\
+Software-defined networking (SDN) & ISA2024 Q4b & 5\\
+Hierarchical structure of the Internet (ISPs) & 2018 Q4c & 6\\
+SLA: purpose and contents & 2023 Q5d.i, Q5d.ii & 1 + 2\\
+Two WAN protocols & SE2024 Q1c & 2\\
+\bottomrule
+\end{tabularx}
+
+\begin{examtip}
+Dijkstra and distance-vector table updates have \emph{not} been asked yet but sit squarely in the outline (``routing algorithms''). A 6--10 mark ``find the shortest paths'' question is a real risk, so practise Sections~\ref{sec:dijkstra} and \ref{sec:dv}.
+\end{examtip}
+
+%=====================================================================
+\section{Routing basics and the routing table}
+
+\textbf{Routing} is the act of moving information across an internetwork from a source to a destination. It involves two activities: \textbf{determining optimal paths} (the routing algorithm) and \textbf{forwarding packets} along them (switching). A router reads the \textbf{destination IP address}, looks for the longest matching prefix in its \textbf{routing table} and sends the packet out of the matching interface to the next hop.
+
+\begin{center}
+\begin{minipage}{\linewidth}\centering
+\begin{tikzpicture}[node distance=8mm]
+  \node[hubn,minimum width=24mm] (lan1) at (0,0) {LAN 192.168.1.0/24};
+  \node[routern] (r1) at (3.8,0) {R1};
+  \node[routern] (r2) at (8.2,0) {R2};
+  \node[hubn,minimum width=24mm] (lan2) at (11.5,0) {LAN 192.168.2.0/24};
+  \node[node,fill=white] (isp) at (3.8,1.6) {ISP / Internet};
+  \draw[link] (lan1) -- node[above,lbl]{G0/0} (r1);
+  \draw[link] (r1) -- node[above,lbl]{S0/0 \quad 10.0.0.0/30 \quad .2} (r2);
+  \draw[link] (r2) -- (lan2);
+  \draw[link] (r1) -- node[right,lbl]{S0/1 \; (203.0.113.1 next hop)} (isp);
+\end{tikzpicture}
+
+\smallskip
+\small
+\begin{tabular}{llll}
+\toprule
+\textbf{Code} & \textbf{Network} & \textbf{[AD/metric] next hop} & \textbf{Interface}\\\midrule
+C & 192.168.1.0/24 & directly connected & G0/0\\
+C & 10.0.0.0/30 & directly connected & S0/0\\
+O & 192.168.2.0/24 & [110/65] via 10.0.0.2 & S0/0\\
+S* & 0.0.0.0/0 & [1/0] via 203.0.113.1 & S0/1\\
+\bottomrule
+\end{tabular}\\
+{\scriptsize\color{midgrey}Figure: R1's routing table holds all three sources: connected (C), dynamic (O = OSPF) and static (S, here the default route).}
+\end{minipage}
+\end{center}
+
+\begin{pastq}{2023 Q2a}{3}Natalie intends to setup a network with several routers purchased by the organization she is working for. She has however, forgotten how routing tables work and needs this information to decide the routing protocol to use. To aid her, describe three (3) different sources a router can use to put/maintain information contained in a routing table.\end{pastq}
+\begin{ans}
+\begin{enumerate}
+\item \textbf{Directly connected networks}: when an interface has an IP address and is up, the router adds that network automatically (code C, AD 0).
+\item \textbf{Static routes}: entered manually by the administrator, e.g.\ \texttt{ip route 192.168.2.0 255.255.255.0 10.0.0.2} (code S, AD 1). Includes the \textbf{default route} 0.0.0.0/0 for ``everything else''.
+\item \textbf{Dynamic routing protocols}: routes learned automatically from neighbouring routers through RIP, OSPF, EIGRP or BGP; they adapt when the topology changes (codes R, O, D).
+\end{enumerate}
+If two sources offer the same network, the router keeps the one with the lowest \textbf{administrative distance}.
+\end{ans}
+\sidenote{\textbf{Administrative distance} = how much a source is trusted. Connected 0, static 1, EIGRP 90, OSPF 110, RIP 120. Lower wins.}
+
+\subsection{Static vs dynamic routing}
+The lecturer's notes list three classes of routing algorithm: \textbf{flooding} (send every packet out of every line except the one it came in on: robust but wasteful, needs a hop counter), \textbf{static} and \textbf{dynamic (adaptive)}.
+
+\begin{tabularx}{\linewidth}{@{}>{\bfseries\raggedright\arraybackslash}p{2.6cm}XX@{}}
+\toprule
+ & \textbf{Static (non-adaptive)} & \textbf{Dynamic (adaptive)}\\\midrule
+How routes appear & Table mappings typed in by the administrator & Learned from routing update messages\\
+Reaction to change & None until the admin edits it & Recalculates and re-advertises automatically\\
+Overhead & No CPU or bandwidth used & Uses CPU, memory and link bandwidth\\
+Security & Nothing advertised, so more secure & Updates can be spoofed (use authentication)\\
+Best for & Small, stable networks; stub networks; default route & Large, changing networks with redundant paths\\
+\bottomrule
+\end{tabularx}
+
+\begin{keydef}{Design goals of a routing algorithm (lecturer's list)}
+\textbf{Optimality} (picks the best route by its metric), \textbf{simplicity and low overhead}, \textbf{robustness and stability}, \textbf{rapid convergence} (all routers agree on optimal routes quickly; slow convergence causes loops), \textbf{flexibility}.
+\textbf{Metrics} used: path length / hop count, reliability, delay, bandwidth, load, communication cost.
+\end{keydef}
+
+%=====================================================================
+\section{Distance vector vs link state}
+
+\begin{pastq}{2023 Q2b}{6}Tabulate at least three (3) main differences between link-state and distance-vector routing protocols.\end{pastq}
+\sidenote{``Tabulate'' means a table. Three rows earns 6 marks (2 each: one fact per column). Write 4 rows to be safe.}
+\begin{ans}
+\small
+\begin{tabularx}{\linewidth}{@{}>{\bfseries\raggedright\arraybackslash}p{2.3cm}XX@{}}
+\toprule
+Point & Distance vector & Link state\\\midrule
+View of network & Knows only distance and direction (next hop) to each network: ``routing by rumour'' & Every router builds a full map (topology database) of the network\\
+What is sent & Whole (or part of) routing table & Small link-state advertisements (LSAs) describing its own links\\
+Sent to & Neighbours only & All routers in the area (flooding)\\
+When & Periodically (RIP every 30 s) & Only when a link changes (+ small hellos)\\
+Algorithm & Bellman-Ford & Dijkstra shortest path first (SPF)\\
+Convergence & Slow; routing loops, count-to-infinity & Fast; loop-free\\
+Resources & Little CPU and memory & More CPU and memory (LSDB + SPF)\\
+Scale / examples & Small networks: RIPv1, RIPv2, IGRP & Large hierarchical networks (areas): OSPF, IS-IS\\
+\bottomrule
+\end{tabularx}
+\end{ans}
+
+\begin{pastq}{2023 Q2c}{6}Copy and complete Table 1 below;\\[2pt]
+\begin{tabular}{|l|l|l|}\hline
+\textbf{Routing Protocol} & \textbf{Distance-vector or Link-state?} & \textbf{Metric used}\\\hline
+RIPv1 & & \\\hline
+EIGRP & & \\\hline
+OSPF & & \\\hline
+\end{tabular}\\[2pt]
+{\small Table 1: Routing}\end{pastq}
+\begin{ans}
+\small
+\begin{tabularx}{\linewidth}{@{}lXX@{}}
+\toprule
+\textbf{Routing protocol} & \textbf{Distance-vector or link-state?} & \textbf{Metric used}\\\midrule
+RIPv1 & Distance-vector (classful) & Hop count (max 15; 16 = unreachable)\\
+EIGRP & Advanced distance-vector (often called hybrid) & Composite: bandwidth (slowest link) + delay (sum) by default; load and reliability optional\\
+OSPF & Link-state & Cost $= \dfrac{\text{reference bandwidth } (10^8 \text{ bps})}{\text{interface bandwidth}}$, summed along the path\\
+\bottomrule
+\end{tabularx}
+\end{ans}
+\begin{trap}
+Writing ``EIGRP = link-state''. EIGRP is a Cisco \textbf{distance-vector} protocol with some link-state features (hellos, partial updates); if you write ``hybrid'', also say ``advanced distance vector''.
+\end{trap}
+
+%=====================================================================
+\section{Link state: Dijkstra's shortest path worked example}\label{sec:dijkstra}
+
+Each link-state router floods LSAs, builds the same \textbf{link-state database}, then runs \textbf{Dijkstra} with itself as the root to get a \textbf{shortest-path tree}. Method:
+\begin{enumerate}
+\item Put the source in the set $N'$ (done). Every neighbour gets its link cost $D(v)$; others get $\infty$.
+\item Pick the node not in $N'$ with the \textbf{smallest} $D$; add it to $N'$.
+\item For each neighbour $v$ of that node: $D(v) = \min\big(D(v),\ D(w) + c(w,v)\big)$, and record the predecessor $p(v)$.
+\item Repeat until all nodes are in $N'$. Follow predecessors back to read each path.
+\end{enumerate}
+
+\begin{center}
+\begin{tikzpicture}[x=10mm,y=10mm,
+   w/.style={fill=white,inner sep=1.2pt,font=\small\bfseries}]
+  \node[routern,fill=brand,text=white] (A) at (0,0) {A\\0};
+  \node[routern] (B) at (3,1.9) {B\\2};
+  \node[routern] (D) at (3,-1.9) {D\\1};
+  \node[routern] (C) at (7,1.9) {C\\3};
+  \node[routern] (E) at (7,-1.9) {E\\2};
+  \node[routern] (F) at (10,0) {F\\4};
+  % non-tree edges
+  \draw[midgrey,thick] (A) -- node[w,pos=0.72]{5} (C);
+  \draw[midgrey,thick] (B) -- node[w,pos=0.72]{2} (D);
+  \draw[midgrey,thick] (B) -- node[w]{3} (C);
+  \draw[midgrey,thick] (C) -- node[w,pos=0.25]{3} (D);
+  \draw[midgrey,thick] (C) -- node[w]{5} (F);
+  % tree edges
+  \draw[brand,line width=2.2pt] (A) -- node[w]{2} (B);
+  \draw[brand,line width=2.2pt] (A) -- node[w]{1} (D);
+  \draw[brand,line width=2.2pt] (D) -- node[w]{1} (E);
+  \draw[brand,line width=2.2pt] (E) -- node[w]{1} (C);
+  \draw[brand,line width=2.2pt] (E) -- node[w]{2} (F);
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: weighted graph, source A. Thick orange = shortest-path tree; the number in each node is its final cost from A.}
+\end{center}
+
+\begin{working}[Dijkstra from A: D(v), p(v) after each step]
+\small
+\begin{tabular}{clccccc}
+\toprule
+\textbf{Step} & $N'$ & \textbf{B} & \textbf{C} & \textbf{D} & \textbf{E} & \textbf{F}\\\midrule
+0 & A & 2, A & 5, A & \textbf{1, A} & $\infty$ & $\infty$\\
+1 & A D & \textbf{2, A} & 4, D & & 2, D & $\infty$\\
+2 & A D B & & 4, D & & \textbf{2, D} & $\infty$\\
+3 & A D B E & & \textbf{3, E} & & & 4, E\\
+4 & A D B E C & & & & & \textbf{4, E}\\
+5 & A D B E C F & & & & & \\
+\bottomrule
+\end{tabular}
+\begin{align*}
+\text{Step 1: } D(C) &= \min(5,\ 1+3) = 4 \text{ via D} && \cmt{via D beats the direct link}\\
+D(E) &= \min(\infty,\ 1+1) = 2 \text{ via D}\\
+\text{Step 2: } & \text{B, E tie on 2; take B} && \cmt{$D(C)$ via B $=5>4$: no change}\\
+\text{Step 3: } D(C) &= \min(4,\ 2+1) = 3 \text{ via E}\\
+D(F) &= \min(\infty,\ 2+2) = 4 \text{ via E}\\
+\text{Step 4: } D(F) &= \min(4,\ 3+5) = 4 && \cmt{no change}
+\end{align*}
+\end{working}
+
+\begin{center}\small
+\begin{tabular}{lllc}
+\toprule
+\textbf{Destination} & \textbf{Shortest path} & \textbf{Next hop (forwarding table of A)} & \textbf{Cost}\\\midrule
+B & A--B & B & 2\\
+C & A--D--E--C & D & 3\\
+D & A--D & D & 1\\
+E & A--D--E & D & 2\\
+F & A--D--E--F & D & 4\\
+\bottomrule
+\end{tabular}
+\end{center}
+\sidenote{Bold entry in each row = the node added to $N'$ in the next step. Once a node is in $N'$, its cost is final; leave its column blank.}
+\begin{examtip}
+In the exam: (1) redraw the graph, (2) build the step table with ``cost, predecessor'' in every cell, (3) show one $\min(\dots)$ line for each change, (4) finish with the path/next-hop table and \textbf{highlight the shortest-path tree} on your graph. Ties can be broken either way; say which you chose.
+\end{examtip}
+
+%=====================================================================
+\section{Distance vector: Bellman-Ford worked example}\label{sec:dv}
+
+Each router keeps a \textbf{distance vector} (best known cost to every destination) and sends it to its \textbf{neighbours}. On receiving vectors it applies the \textbf{Bellman-Ford equation}:
+\[
+D_x(y) = \min_{v \,\in\, \text{neighbours}} \big\{\, c(x,v) + D_v(y) \,\big\}
+\]
+``my cost to $y$ = cost to neighbour $v$ + what $v$ says its cost to $y$ is'', taking the cheapest neighbour.
+
+\begin{center}
+\begin{tikzpicture}[x=10mm,y=10mm,
+   w/.style={fill=white,inner sep=1pt,font=\scriptsize\bfseries},
+   vec/.style={draw=brand,fill=softpeach,font=\scriptsize,inner sep=2pt,rounded corners=1pt}]
+  \node[routern,fill=brand,text=white] (A) at (0,0) {A};
+  \node[routern] (B) at (4.5,1.1) {B};
+  \node[routern] (C) at (4.5,-1.1) {C};
+  \node[routern] (D) at (8,-1.1) {D};
+  \draw[link] (A) -- node[w]{2} (B);
+  \draw[link] (A) -- node[w]{5} (C);
+  \draw[link] (B) -- node[w]{2} (C);
+  \draw[link] (C) -- node[w]{1} (D);
+  \draw[msg] (B.north) to[bend right=25] (A.north);
+  \draw[msg] (C.south) to[bend left=25] (A.south);
+  \node[vec] at (2.2,2.25) {\begin{tabular}{@{}l@{\;\;}cccc@{}}\textbf{B's vector} & A\,2 & B\,0 & C\,2 & D\,3\end{tabular}};
+  \node[vec] at (2.2,-2.25) {\begin{tabular}{@{}l@{\;\;}cccc@{}}\textbf{C's vector} & A\,5 & B\,2 & C\,0 & D\,1\end{tabular}};
+  \node[note,anchor=west] at (6.0,0.9) {neighbours send their\\whole table every 30 s (RIP)};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: A receives the distance vectors of its neighbours B (link cost 2) and C (link cost 5).}
+\end{center}
+
+\begin{working}[A's new table from the two vectors]
+\begin{align*}
+D_A(B) &= \min(2+0,\ 5+2) = 2 \text{ via B}\\
+D_A(C) &= \min(2+2,\ 5+0) = 4 \text{ via B} && \cmt{the direct link (5) is not the best}\\
+D_A(D) &= \min(2+3,\ 5+1) = 5 \text{ via B} && \cmt{$c(A,B)+D_B(D)$ vs $c(A,C)+D_C(D)$}
+\end{align*}
+\centering\small
+\begin{tabular}{lccc}
+\toprule
+\textbf{Dest} & \textbf{via B} ($2+D_B$) & \textbf{via C} ($5+D_C$) & \textbf{A's entry (cost, next hop)}\\\midrule
+B & 2 & 7 & \textbf{2, B}\\
+C & 4 & 5 & \textbf{4, B}\\
+D & 5 & 6 & \textbf{5, B}\\
+\bottomrule
+\end{tabular}
+\end{working}
+A then sends its \emph{new} vector to B and C. This repeats until no table changes: the network has \textbf{converged}.
+
+\subsection{Count-to-infinity and its fixes}
+Good news (a cheaper route) spreads fast; \textbf{bad news (a failure) spreads slowly}, because routers keep believing each other's old routes.
+
+\begin{center}
+\begin{tikzpicture}[x=10mm,y=10mm]
+  \node[routern] (R1) at (0,0) {R1};
+  \node[routern] (R2) at (3.5,0) {R2};
+  \node[routern] (R3) at (7,0) {R3};
+  \node[hubn] (N) at (10,0) {Net N};
+  \draw[link] (R1) -- (R2);
+  \draw[link] (R2) -- (R3);
+  \draw[link] (R3) -- (N);
+  \node[font=\Large\bfseries,text=hardc] at (5.25,0) {$\times$};
+  \node[lbl,above] at (5.25,0.2) {link fails};
+  \draw[msg,dashed] (R1) to[bend left=35] node[above,lbl]{``I reach N in 3''} (R2);
+  \node[note] at (5,-0.9) {R2 has lost N but believes R1, not knowing R1's route goes through R2 itself};
+\end{tikzpicture}
+\end{center}
+
+\begin{working}[Hop counts to Net N after the failure (RIP, cost 1 per hop)]
+\centering\small
+\begin{tabular}{lccccccc}
+\toprule
+\textbf{Exchange} & before & 1 & 2 & 3 & 4 & \dots & final\\\midrule
+R2 & 2 & 4 (via R1) & 4 & 6 & 6 & \dots & 16\\
+R1 & 3 & 3 & 5 (via R2) & 5 & 7 & \dots & 16\\
+\bottomrule
+\end{tabular}
+\begin{align*}
+D_{R2}(N) &= 1 + D_{R1}(N) = 1 + 3 = 4 && \cmt{R1's stale route really goes through R2 itself}\\
+D_{R1}(N) &= 1 + D_{R2}(N) = 5,\ \text{then } 6, 7, \dots && \cmt{counts up until 16 = ``infinity''}
+\end{align*}
+\end{working}
+
+\textbf{Fixes} (each stops the loop a different way):
+\begin{itemize}
+\item \textbf{Maximum hop count}: define infinity as 16 (RIP), so counting stops quickly.
+\item \textbf{Split horizon}: never advertise a route back out of the interface it was learned on (R1 would not tell R2 about N).
+\item \textbf{Route poisoning}: the router that loses a route advertises it at once with metric 16 (unreachable).
+\item \textbf{Poison reverse}: neighbours echo the poisoned route back with metric 16 to confirm it.
+\item \textbf{Hold-down timer}: after a route goes down, ignore worse news about it for 180 s so false routes cannot be accepted.
+\item \textbf{Triggered updates}: send an update immediately on a change instead of waiting for the 30 s timer.
+\end{itemize}
+
+%=====================================================================
+\section{Routing protocols: RIP v2, EIGRP and OSPF}
+
+\begin{center}
+\begin{tikzpicture}[x=10mm,y=10mm]
+  \node[node,fill=ink,text=white,minimum width=30mm] (rp) at (6,2.6) {Routing protocols};
+  \node[node,fill=peach,minimum width=28mm] (igp) at (3,1.3) {IGP (inside one AS)};
+  \node[node,fill=peach,minimum width=28mm] (egp) at (10,1.3) {EGP (between ASes)};
+  \node[node] (dv) at (0.6,0) {Distance vector};
+  \node[node] (ls) at (5.4,0) {Link state};
+  \node[node,fill=white] (bgp) at (10,0) {BGP-4\\{\scriptsize path vector}};
+  \node[lbl] at (0.6,-0.9) {RIPv1, RIPv2, IGRP,\\EIGRP (advanced DV)};
+  \node[lbl] at (5.4,-0.9) {OSPF, IS-IS};
+  \draw[link] (rp) -- (igp); \draw[link] (rp) -- (egp);
+  \draw[link] (igp) -- (dv); \draw[link] (igp) -- (ls); \draw[link] (egp) -- (bgp);
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: AS = autonomous system, one organisation's routing domain. BGP connects ISPs.}
+\end{center}
+
+\begin{pastq}{ISA2024 Q5c}{6}Explain in detail the working of the RIP v2 routing algorithm.\end{pastq}
+\begin{ans}
+\begin{enumerate}
+\item RIPv2 is a \textbf{distance-vector} protocol using the \textbf{Bellman-Ford} algorithm; metric = \textbf{hop count}, max 15 (16 = unreachable), so it suits small networks. AD 120, UDP port 520.
+\item Each router starts with its directly connected networks (hop 0) and every \textbf{30 s} sends its \textbf{entire routing table} to neighbours using multicast \textbf{224.0.0.9}.
+\item On receiving an update it adds \textbf{1 hop} to every route; a new route, or one with fewer hops, is installed with that neighbour as next hop.
+\item \textbf{Classless}: sends the \textbf{subnet mask} with every route, so it supports VLSM and CIDR (RIPv1 did not); also adds \textbf{authentication} (plain text / MD5), a next-hop field and route tags.
+\item \textbf{Timers}: update 30 s, invalid 180 s (route marked unreachable), hold-down 180 s, flush 240 s (removed).
+\item \textbf{Loop prevention}: split horizon, route poisoning, poison reverse, hold-down timers and triggered updates.
+\end{enumerate}
+Weakness: slow convergence; hop count ignores bandwidth (a 2-hop 64 kbps path beats a 3-hop 1 Gbps path).
+\end{ans}
+\sidenote{RIPv1 vs v2 in one line: v1 = classful, broadcast 255.255.255.255, no auth; v2 = classless, multicast 224.0.0.9, MD5 auth.}
+
+\begin{pastq}{2023 Q2d}{5}Describe the workings of the EIGRP routing protocol, clearly highlighting how it selects the best path for transmission of packets.\end{pastq}
+\begin{ans}
+\begin{enumerate}
+\item \textbf{EIGRP} (Enhanced Interior Gateway Routing Protocol) is Cisco's \textbf{advanced distance-vector} protocol: classless, AD 90, protocol number 88.
+\item Routers discover neighbours with \textbf{Hello} packets (multicast 224.0.0.10) and keep three tables: \textbf{neighbour}, \textbf{topology} (all routes from all neighbours) and \textbf{routing} (best routes).
+\item Updates are \textbf{partial and bounded}: only changes, only to routers that need them, sent reliably with RTP. This saves bandwidth.
+\item \textbf{Metric}: composite of the \textbf{slowest bandwidth} on the path and the \textbf{sum of delays}: metric $= 256\times(10^7/BW_{\min} + \text{delay}/10)$, with $BW$ in kbps and delay in $\mu$s. Lowest metric = best.
+\item \textbf{Best path by DUAL}: the route with the lowest \textbf{feasible distance (FD)} becomes the \textbf{successor} and goes into the routing table. A backup whose \textbf{reported distance (RD) $<$ FD} of the successor (feasibility condition) is kept as the \textbf{feasible successor}. If the successor fails, the feasible successor is used at once: fast, loop-free convergence. EIGRP also allows unequal-cost load balancing (\texttt{variance}).
+\end{enumerate}
+\end{ans}
+
+\begin{keydef}{OSPF in six lines (link state)}
+\begin{itemize}
+\item Open standard link-state IGP, AD 110, IP protocol 89; uses Dijkstra SPF.
+\item Hellos (224.0.0.5) form \textbf{adjacencies}; on a LAN a \textbf{DR/BDR} is elected to cut LSA traffic.
+\item Routers flood \textbf{LSAs}; every router in an area has an identical \textbf{LSDB}, then runs SPF to build its tree.
+\item Hierarchical \textbf{areas}: all areas attach to backbone \textbf{area 0}; this keeps LSDBs and SPF runs small.
+\item Metric = \textbf{cost} $= 10^8 / \text{bandwidth}$: 100 Mbps $=1$, 10 Mbps $=10$, T1 1.544 Mbps $=64$.
+\item Fast convergence, classless (VLSM), authentication, equal-cost load balancing.
+\end{itemize}
+\end{keydef}
+
+%=====================================================================
+\section{Congestion control}
+
+\textbf{Congestion} happens when the load (packets offered) is greater than the capacity of part of the network. Router queues fill, delay rises, packets are dropped, senders retransmit, and the extra traffic makes it worse (\textbf{congestion collapse}). \textbf{Congestion control} = techniques that keep the load below capacity: \textbf{prevent} congestion (open loop) or \textbf{remove} it once it is detected (closed loop).
+Causes: bursty traffic, slow links/routers, too little buffer space, many inputs feeding one output.
+
+\begin{tabularx}{\linewidth}{@{}XX@{}}
+\toprule
+\textbf{Open loop (prevention, before it happens)} & \textbf{Closed loop (removal, after it is detected)}\\\midrule
+Retransmission policy: sensible timers & Backpressure: congested node refuses packets, upstream nodes slow, back to the source\\
+Window policy: Selective Repeat, not Go-Back-N & Choke packet: router tells the source directly to slow down (ICMP source quench)\\
+Acknowledgement policy: cumulative / delayed ACKs & Implicit signalling: source infers it from lost ACKs / long delay (TCP)\\
+Discard policy: drop the less important packets first & Explicit signalling: routers mark packets (ECN, Frame Relay FECN/BECN)\\
+Admission control: refuse a new flow the network cannot carry & RED: drop/mark randomly \emph{before} the queue is full\\
+Traffic shaping: leaky bucket, token bucket & TCP: slow start, AIMD, halve the window on loss\\
+\bottomrule
+\end{tabularx}
+
+\begin{center}
+\begin{tikzpicture}[x=10mm,y=10mm]
+  \draw[->] (0,0) -- (7.5,0) node[below left,lbl]{offered load};
+  \draw[->] (0,0) -- (0,2.4) node[above,lbl]{throughput};
+  \draw[dashed,midgrey] (0,1.8) node[left,lbl]{capacity} -- (7.2,1.8);
+  \draw[thick,ink] (0,0) -- (3,1.8) -- (7.2,1.8);
+  \draw[thick,easyc] (0,0) .. controls (3,1.6) .. (7.2,1.65);
+  \draw[thick,hardc] (0,0) .. controls (2.8,1.6) and (3.6,1.6) .. (7.2,0.25);
+  \node[lbl,anchor=west] at (7.3,1.95) {ideal};
+  \node[lbl,anchor=west,text=medc] at (7.3,1.5) {with control};
+  \node[lbl,anchor=west,text=hardc] at (7.3,0.3) {congestion\\collapse};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: without congestion control, throughput falls as load rises past capacity (retransmissions and drops).}
+\end{center}
+
+\subsection{Traffic shaping: leaky bucket and token bucket}
+
+\begin{center}
+\begin{tikzpicture}[x=10mm,y=10mm]
+  % input graph
+  \draw[->] (0,0) -- (3.2,0) node[below left,lbl]{time};
+  \draw[->] (0,0) -- (0,1.9) node[above,lbl]{rate};
+  \foreach \x in {0.2,0.5,0.8,2.1,2.4} \fill[brand] (\x,0) rectangle ++(0.22,1.4);
+  \node[lbl] at (1.5,-0.55) {bursty input from host};
+  % bucket
+  \begin{scope}[shift={(6,0)}]
+    \fill[peach!70] (-0.85,1.0) -- (-0.7,0) -- (0.7,0) -- (0.85,1.0) -- cycle;
+    \fill[peach!70] (-0.1,-0.35) rectangle (0.1,0);
+    \draw[very thick] (-1,2) -- (-0.7,0) -- (-0.1,0) -- (-0.1,-0.35);
+    \draw[very thick] (1,2) -- (0.7,0) -- (0.1,0) -- (0.1,-0.35);
+    \node[lbl] at (0,0.5) {queue};
+    \node[lbl] at (0,1.5) {bucket\\size $b$};
+    \draw[msg,hardc,dashed] (0.95,1.9) -- (1.5,2.5) node[above,lbl]{overflow\\dropped};
+  \end{scope}
+  \draw[msg] (3.0,1.5) .. controls (4.2,2.6) .. (5.6,2.1);
+  \draw[msg] (6,-0.4) .. controls (6.3,-0.9) and (7.6,-0.6) .. (8.75,0.25) node[pos=0.5,below right,lbl]{constant rate $r$};
+  % output graph
+  \begin{scope}[shift={(9,0)}]
+    \draw[->] (0,0) -- (3.4,0) node[below left,lbl]{time};
+    \draw[->] (0,0) -- (0,1.9) node[above,lbl]{rate};
+    \foreach \x in {0.2,0.5,...,3.0} \fill[easyc] (\x,0) rectangle ++(0.22,0.55);
+    \node[lbl] at (1.6,-0.55) {smooth output};
+  \end{scope}
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: leaky bucket. Water poured in at any rate leaks out of the hole at a fixed rate; if the bucket is full, new packets are discarded.}
+\end{center}
+
+\begin{center}
+\begin{tikzpicture}[x=10mm,y=10mm]
+  % packet queue
+  \foreach \x in {0,0.45,0.9,1.35,1.8} \draw[fill=brand] (\x,-1.2) rectangle ++(0.35,0.4);
+  \node[lbl] at (1.07,-1.6) {packets waiting (bursty)};
+  % bucket
+  \begin{scope}[shift={(6,0)}]
+    \draw[very thick] (-1,2) -- (-0.7,0) -- (0.7,0) -- (1,2);
+    \foreach \x/\y in {-0.45/0.2,-0.15/0.2,0.15/0.2,0.45/0.2,-0.3/0.5,0/0.5,0.3/0.5,-0.15/0.8,0.15/0.8}
+       \fill[easyc,draw=ink] (\x,\y) circle (0.12);
+    \node[lbl] at (0,1.45) {tokens};
+    \draw[decorate,decoration={brace,amplitude=4pt}] (1.15,0) -- (1.15,2) node[midway,right=5pt,lbl]{holds at\\most $b$\\tokens};
+    \fill[easyc,draw=ink] (0,3.0) circle (0.12);
+    \draw[msg] (0,2.8) -- (0,2.1);
+    \node[lbl,anchor=west] at (0.25,2.9) {1 token added every $1/r$ s};
+    \node[node,fill=white,minimum width=12mm] (gate) at (0,-1.0) {gate};
+    \draw[msg] (0,0) -- node[right,lbl]{1 token\\per packet} (gate);
+  \end{scope}
+  \draw[msg] (2.3,-1.0) -- (gate);
+  \draw[msg] (gate) -- (8.85,-1.0);
+  \node[lbl,anchor=west] at (6.6,-1.55) {sent only if a\\token is available};
+  % output graph
+  \begin{scope}[shift={(9,-1.3)}]
+    \draw[->] (0,0) -- (3.4,0) node[below left,lbl]{time};
+    \draw[->] (0,0) -- (0,2.2) node[above,lbl]{rate};
+    \foreach \x in {0.2,0.5,0.8} \fill[brand] (\x,0) rectangle ++(0.22,1.6);
+    \foreach \x in {1.1,1.4,...,3.0} \fill[easyc] (\x,0) rectangle ++(0.22,0.55);
+    \node[lbl] at (0.65,1.9) {burst};
+    \node[lbl] at (2.1,0.85) {then rate $r$};
+  \end{scope}
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: token bucket. Saved-up tokens let a burst of up to $b$ packets go at once; after that the output falls to the token rate $r$.}
+\end{center}
+
+\begin{tabularx}{\linewidth}{@{}>{\bfseries\raggedright\arraybackslash}p{2.3cm}XX@{}}
+\toprule
+ & \textbf{Leaky bucket} & \textbf{Token bucket}\\\midrule
+Output & Always the constant rate $r$ & Bursts up to $b$, average rate $r$\\
+Idle host & Saves nothing & Saves tokens (up to $b$) for later bursts\\
+When full & Discards \textbf{packets} & Discards \textbf{tokens}, never packets\\
+Use & Strict smoothing (e.g.\ ATM) & Flexible shaping/policing of bursty data\\
+\bottomrule
+\end{tabularx}
+
+\begin{working}[Token bucket: how long can a full burst last?]
+\begin{align*}
+b + rS &= MS && \cmt{saved tokens + new tokens = data sent at max rate $M$}\\
+S &= \frac{b}{M - r}\\
+S &= \frac{250\text{ KB}}{(25-2)\text{ MB/s}} \approx 10.9\text{ ms} && \cmt{e.g.\ $b$ = 250 KB, $r$ = 2, $M$ = 25 MB/s}
+\end{align*}
+\end{working}
+\sidenote{Mnemonic: \textbf{leaky} = constant drip, drops \textbf{packets}. \textbf{Token} = savings account: you can spend a burst, drops \textbf{tokens}.}
+
+\begin{pastq}{2025 Q3c}{10}A network is experiencing a high volume of traffic, leading to delays and dropped packets. Explain the concept of congestion control and describe at least two mechanisms used to manage network congestion.\end{pastq}
+\begin{ans}
+\textbf{Concept (3)}: congestion occurs when the traffic offered exceeds the capacity of links/routers. Queues fill, so delay rises and packets are dropped; retransmissions add even more load. \textbf{Congestion control} is the set of mechanisms that keep the load below capacity, either \textbf{preventing} congestion (open loop) or \textbf{detecting and removing} it (closed loop).
+
+\textbf{Mechanisms (7)}:
+\begin{enumerate}
+\item \textbf{Leaky bucket (traffic shaping)}: packets enter a finite queue and leave at a \textbf{constant rate}, so bursts are smoothed; when the bucket is full packets are discarded. (Draw the figure above.)
+\item \textbf{Token bucket}: tokens arrive at rate $r$ into a bucket of size $b$; a packet may leave only by taking a token. Allows controlled bursts while limiting the average rate; tokens, not packets, are discarded.
+\item \textbf{Choke packets}: a congested router sends a control packet to the source, which reduces its sending rate.
+\item \textbf{Backpressure}: the congested node stops accepting packets from its upstream neighbour, which in turn slows its own upstream, back to the source.
+\item \textbf{TCP congestion control}: slow start (window doubles each RTT to the threshold), then additive increase; on loss the window is halved (AIMD) or reset to 1.
+\item \textbf{RED / ECN} and \textbf{admission control}: routers drop or mark early so senders slow down before queues overflow; new flows are refused if the network cannot carry them.
+\end{enumerate}
+\end{ans}
+\begin{examtip}
+For 10 marks: define (2), cause/effect (1), open vs closed loop (1), then \textbf{two mechanisms in detail with a diagram} (3 each). The leaky and token buckets are the easiest to draw.
+\end{examtip}
+
+%=====================================================================
+\section{Quality of Service (QoS)}
+
+\textbf{QoS} = the ability of the network to give some traffic better, more predictable treatment (bandwidth, delay, jitter, loss) than other traffic.
+Techniques: \textbf{classification and marking} (DSCP in the IP header), \textbf{scheduling} (FIFO, priority queuing, weighted fair queuing), \textbf{traffic shaping/policing}, \textbf{admission control}, \textbf{resource reservation}.
+Two models: \textbf{IntServ} (per-flow reservation with RSVP: guaranteed but does not scale) and \textbf{DiffServ} (packets marked into a few classes, e.g.\ EF for voice; each router gives per-hop treatment: scales).
+
+\begin{pastq}{2023 Q3d}{4}The Internet is often described as being a ``best effort network''. Explain what is meant by the term ``best effort network''.\end{pastq}
+\begin{ans}
+\begin{enumerate}
+\item The network \textbf{tries} to deliver every packet but gives \textbf{no guarantees}: not of delivery, delay, bandwidth, order or freedom from duplicates.
+\item All packets are treated \textbf{equally} (first come, first served); there is no reservation or priority.
+\item When routers are congested, packets are simply \textbf{dropped}; IP is connectionless and does not tell anyone.
+\item Reliability, if needed, is left to the end hosts (TCP retransmits). It is simple, cheap and scalable, but unpredictable for real-time traffic, which is why QoS (DiffServ, IntServ, MPLS) was added.
+\end{enumerate}
+\end{ans}
+
+\begin{pastq}{2023 Q3e}{6}List three QoS parameters that are often measured to characterize the behavior of a network or network connection.\end{pastq}
+\begin{ans}
+\begin{enumerate}
+\item \textbf{Bandwidth / throughput}: amount of data successfully delivered per second (bps).
+\item \textbf{Latency (delay)}: time for a packet to go from source to destination (propagation + transmission + queuing + processing).
+\item \textbf{Jitter}: variation in the delay (packet arrival time) between packets of the same flow; harms real-time voice and video.
+\item \textbf{Packet loss}: percentage of packets that never arrive, mostly from congestion.
+\end{enumerate}
+(Also: reliability / error rate, availability.)
+\end{ans}
+\sidenote{``List three'' for 6 marks: name (1) + one-line definition (1) each. Give a fourth in case one is not accepted.}
+
+\begin{pastq}{2023 Q2e}{5}Discuss the quality-of-service requirements of a Voice-over-IP (VoIP) application and how they differ from those of a video-based application.\end{pastq}
+\begin{ans}
+\small
+\begin{tabularx}{\linewidth}{@{}>{\bfseries\raggedright\arraybackslash}p{1.9cm}XX@{}}
+\toprule
+Parameter & VoIP & Video\\\midrule
+Bandwidth & Low: about 30--100 kbps per call & High: 1--25 Mbps (HD/4K), bursty\\
+Delay & Very sensitive: one-way $<$ 150 ms (interactive) & Streaming tolerant (buffer hides seconds); conferencing $<$ 150--200 ms\\
+Jitter & $<$ 30 ms; jitter buffer used & Streaming tolerant; conferencing sensitive\\
+Loss & $<$ 1\%; lost packets are not resent (UDP/RTP) & $<$ 0.1--1\%; loss gives pixelation and freezing\\
+Traffic & Small, constant-rate packets, two-way & Large packets, variable rate, mostly one-way\\
+Treatment & Highest priority (DiffServ EF), low-latency queue & Lower class (AF41 conferencing, AF31 streaming)\\
+\bottomrule
+\end{tabularx}
+In short: voice needs \textbf{little bandwidth but very low delay and jitter}; video needs \textbf{much more bandwidth} and is more tolerant of delay when streamed.
+\end{ans}
+
+\begin{pastq}{ISA2024 Q4d}{7}A large enterprise network is experiencing slow data transfer rates, high latency and frequent packet losses. The network administrator is tasked with improving the network's performance to ensure efficient and reliable communication among employees, customers and partners. Describe network performance optimization and how would you achieve it in this scenario to improve the network's efficiency, speed and reliability?\end{pastq}
+\begin{ans}
+\textbf{Network performance optimisation} = monitoring, analysing and tuning the hardware, configuration and traffic so the network gives the most throughput with the least latency, jitter and loss for business applications.
+\begin{enumerate}
+\item \textbf{Monitor and baseline}: SNMP/NetFlow tools and Wireshark to find bottlenecks, top talkers, error counters, overloaded links.
+\item \textbf{Upgrade bandwidth and hardware}: faster uplinks (1 $\to$ 10 Gbps), replace hubs with switches, fix faulty cables/NICs (CRC errors cause loss).
+\item \textbf{Segment}: VLANs and subnetting cut broadcast traffic and collision domains.
+\item \textbf{QoS}: classify and prioritise VoIP and business apps over bulk downloads; shape/police traffic (token bucket).
+\item \textbf{Load balancing and redundancy}: link aggregation, redundant routers (HSRP), dynamic routing (OSPF/EIGRP) for fast failover: reliability.
+\item \textbf{Caching and WAN optimisation}: proxy caches/CDN, compression and deduplication on WAN links.
+\item \textbf{Security and housekeeping}: block malware and unauthorised streaming, update firmware, document and review regularly.
+\end{enumerate}
+\end{ans}
+
+%=====================================================================
+\Needspace{9cm}
+\section{Software-defined networking (SDN)}
+
+\begin{center}
+\begin{tikzpicture}[x=10mm,y=10mm]
+  \fill[peach!25] (0,3.3) rectangle (13.6,4.7);
+  \fill[brand!20] (0,1.5) rectangle (13.6,2.5);
+  \fill[cream] (0,-0.5) rectangle (13.6,0.7);
+  \node[lbl,anchor=west,font=\scriptsize\bfseries] at (0.1,4.0) {APPLICATION\\PLANE};
+  \node[lbl,anchor=west,font=\scriptsize\bfseries] at (0.1,2.0) {CONTROL\\PLANE};
+  \node[lbl,anchor=west,font=\scriptsize\bfseries] at (0.1,0.1) {DATA\\PLANE};
+  \node[node,fill=white] (a1) at (4.5,4) {Firewall};
+  \node[node,fill=white] (a2) at (7.5,4) {Load balancer};
+  \node[node,fill=white] (a3) at (10.8,4) {QoS / monitoring};
+  \node[node,fill=brand,text=white,minimum width=70mm] (ctl) at (7.6,2) {\textbf{SDN controller} (network OS, global view)};
+  \node[switchn] (s1) at (3.8,0.1) {switch};
+  \node[switchn] (s2) at (6.4,0.1) {switch};
+  \node[switchn] (s3) at (9.0,0.1) {switch};
+  \node[switchn] (s4) at (11.6,0.1) {switch};
+  \draw[link] (s1) -- (s2) -- (s3) -- (s4);
+  \foreach \a in {a1,a2,a3} \draw[<->,thick,brand] (\a) -- (\a |- ctl.north);
+  \foreach \s in {s1,s2,s3,s4} \draw[<->,thick,brand] (\s) -- (\s |- ctl.south);
+  \node[lbl,fill=peach!25,anchor=west] at (12.0,3.0) {northbound\\API (REST)};
+  \node[lbl,fill=cream,anchor=west] at (12.0,1.1) {southbound\\API (OpenFlow)};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: SDN architecture. The control plane is taken out of each device and centralised in the controller; switches only forward.}
+\end{center}
+
+\begin{pastq}{ISA2024 Q4b}{5}Elaborate on software-defined networking (SDN).\end{pastq}
+\begin{ans}
+\begin{enumerate}
+\item SDN is an architecture that \textbf{separates the control plane} (deciding where traffic goes) \textbf{from the data plane} (forwarding packets).
+\item Control is \textbf{centralised in software}, the \textbf{SDN controller} (e.g.\ OpenDaylight, ONOS), which has a global view of the network; switches become simple forwarding devices.
+\item The controller programs the switches' flow tables through a \textbf{southbound API} (OpenFlow); applications request services through a \textbf{northbound API} (REST).
+\item \textbf{Benefits}: programmable and automated, central management, fast provisioning, network-wide policies for QoS and security, vendor independence, suits cloud and virtualisation.
+\item \textbf{Challenges}: the controller is a single point of failure and attack; scalability; new skills needed.
+\end{enumerate}
+\end{ans}
+\sidenote{Traditional router: control + data plane in every box, configured one by one. SDN: one brain, many simple ``hands''.}
+
+%=====================================================================
+\section{Internet structure: ISPs, tiers and SLAs}
+
+\begin{center}
+\begin{tikzpicture}[x=10mm,y=10mm,
+   isp/.style={node,minimum width=17mm,minimum height=6mm,font=\scriptsize}]
+  \node[lbl,anchor=west,font=\scriptsize\bfseries,align=left] at (0,3.6) {TIER 1\\global backbone};
+  \node[lbl,anchor=west,font=\scriptsize\bfseries,align=left] at (0,2.0) {TIER 2\\regional / national};
+  \node[lbl,anchor=west,font=\scriptsize\bfseries,align=left] at (0,0.4) {TIER 3\\local access};
+  \node[lbl,anchor=west,font=\scriptsize\bfseries,align=left] at (0,-1.0) {END USERS};
+  \node[isp,fill=brand,text=white] (t1a) at (4.5,3.6) {Tier 1 (AT\&T)};
+  \node[isp,fill=brand,text=white] (t1b) at (8.0,3.6) {Tier 1 (NTT)};
+  \node[isp,fill=brand,text=white] (t1c) at (11.5,3.6) {Tier 1 (Tata)};
+  \draw[dashed,thick,brand] (t1a) -- node[above,lbl]{peering} (t1b);
+  \draw[dashed,thick,brand] (t1b) -- (t1c);
+  \node[isp,fill=peach] (t2a) at (4.5,2.0) {Liquid};
+  \node[node,fill=ink,text=white,minimum width=10mm,minimum height=6mm,font=\scriptsize] (ixp) at (8.0,2.0) {IXP};
+  \node[isp,fill=peach] (t2b) at (11.5,2.0) {Seacom};
+  \draw[link] (t2a) -- (t1a); \draw[link] (t2a) -- (t1b);
+  \draw[link] (t2b) -- (t1c); \draw[link] (t2b) -- (t1b);
+  \draw[dashed,thick,brand] (t2a) -- (ixp) -- (t2b);
+  \node[isp,fill=cream] (t3a) at (3.3,0.4) {ZOL};
+  \node[isp,fill=cream] (t3b) at (6.3,0.4) {TelOne};
+  \node[isp,fill=cream] (t3c) at (9.7,0.4) {Econet};
+  \node[isp,fill=cream] (t3d) at (12.6,0.4) {Utande};
+  \draw[link] (t3a) -- (t2a); \draw[link] (t3b) -- (t2a); \draw[link] (t3c) -- (t2b); \draw[link] (t3d) -- (t2b);
+  \foreach \x/\p in {2.7/t3a,3.9/t3a,5.7/t3b,6.9/t3b,9.1/t3c,10.3/t3c,12.0/t3d,13.2/t3d}{
+     \node[hostn,minimum width=7mm,minimum height=4mm] (u) at (\x,-1.0) {};
+     \draw[midgrey] (u) -- (\p);
+  }
+  \node[note,anchor=west] at (13.0,2.8) {transit\\(paid)};
+  \draw[->,midgrey] (13.4,2.4) -- (13.4,3.2);
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: hierarchical structure of the Internet. Solid = customer buys transit from the tier above; dashed = settlement-free peering.}
+\end{center}
+
+\begin{pastq}{2018 Q4c}{6}Draw and explain the hierarchical structure of the Internet (ISPs).\end{pastq}
+\begin{ans}
+(Diagram above: 2 marks.)
+\begin{enumerate}
+\item \textbf{Tier 1 ISPs}: global backbone networks that can reach every network without buying transit; they \textbf{peer} with each other free of charge. E.g.\ AT\&T, NTT, Tata, Lumen.
+\item \textbf{Tier 2 ISPs}: regional / national providers; \textbf{buy transit} from Tier 1 and peer with other Tier 2s at \textbf{IXPs}. E.g.\ Liquid Intelligent Technologies, Seacom.
+\item \textbf{Tier 3 ISPs}: local access ISPs that buy transit from Tier 2 and connect homes and businesses. E.g.\ ZOL, TelOne, Econet, Utande.
+\item Networks meet at \textbf{POPs} (points of presence) and \textbf{IXPs} (Internet exchange points); content providers (Google, Netflix) connect directly to cut cost. Traffic goes up the hierarchy and back down; each ISP is an autonomous system and they exchange routes with \textbf{BGP}.
+\end{enumerate}
+\end{ans}
+
+\begin{pastq}{2023 Q5d.i \textnormal{/} Q5d.ii}{1 + 2}Telecommunication companies (Telcos) that provide global network services, define the services they offer to customers within a Service Level Agreement (SLA). (i) Explain the purpose of a SLA. (ii) Give any two (2) examples of what it might contain.\end{pastq}
+\begin{ans}
+(i) An SLA is a \textbf{formal contract between a service provider and a customer} that defines the level and quality of service to be delivered, how it is measured, and the penalties if it is not met.\\
+(ii) Any two: guaranteed \textbf{availability/uptime} (e.g.\ 99.9\%); guaranteed \textbf{bandwidth}; maximum \textbf{latency, jitter and packet loss}; \textbf{fault response and repair times}; support hours and contacts; \textbf{penalties / service credits}; reporting and monitoring; security responsibilities.
+\end{ans}
+\begin{working}[What 99.9\% uptime really allows]
+\begin{align*}
+(1 - 0.999) \times 365 \times 24 &= 8.76 \text{ h of downtime per year} && \cmt{99.99\% allows only 53 min}
+\end{align*}
+\end{working}
+
+%=====================================================================
+\section{WAN technologies and protocols}
+
+A \textbf{WAN} connects LANs over a large area using a carrier's (telco's) links. The customer's router is the \textbf{DTE}; the CSU/DSU or modem is the \textbf{DCE} that clocks the line. The \textbf{local loop} runs from the customer's \textbf{demarcation point} to the provider's exchange. These are \textbf{point-to-point networks}: data crosses intermediate switching nodes (store and forward) using circuit switching, datagrams or \textbf{virtual circuits}.
+
+\begin{center}
+\begin{tikzpicture}[x=10mm,y=10mm]
+  \node[hostn,minimum width=9mm] (h1) at (0.5,0.5) {PC};
+  \node[hostn,minimum width=9mm] (h2) at (0.5,-0.5) {PC};
+  \node[switchn,minimum width=12mm] (sw1) at (2.1,0) {switch};
+  \node[routern] (r1) at (3.7,0) {R1};
+  \node[ellipse,draw=ink,fill=cream,minimum width=34mm,minimum height=16mm,font=\scriptsize,align=center] (wan) at (7,0) {Provider WAN\\leased line / MPLS\\/ Frame Relay};
+  \node[routern] (r2) at (10.3,0) {R2};
+  \node[switchn,minimum width=12mm] (sw2) at (11.9,0) {switch};
+  \node[hostn,minimum width=9mm] (h3) at (13.5,0.5) {PC};
+  \node[hostn,minimum width=9mm] (h4) at (13.5,-0.5) {PC};
+  \draw[link] (h1) -- (sw1); \draw[link] (h2) -- (sw1); \draw[link] (sw1) -- (r1);
+  \draw[link,brand,very thick] (r1) -- (wan.west); \draw[link,brand,very thick] (wan.east) -- (r2);
+  \draw[link] (r2) -- (sw2); \draw[link] (sw2) -- (h3); \draw[link] (sw2) -- (h4);
+  \node[lbl,above] at (4.6,0.1) {serial};
+  \node[lbl,above] at (9.4,0.1) {serial};
+  \draw[midgrey,dashed] (4.75,-0.9) -- (4.75,0.9);
+  \draw[midgrey,dashed] (9.25,-0.9) -- (9.25,0.9);
+  \node[note] at (4.75,-1.15) {demarc / CSU-DSU};
+  \node[note] at (9.25,-1.15) {demarc / CSU-DSU};
+  \draw[decorate,decoration={brace,mirror,amplitude=4pt}] (0,-1.5) -- (3.9,-1.5) node[midway,below=4pt,lbl]{Site A LAN (DTE side)};
+  \draw[decorate,decoration={brace,mirror,amplitude=4pt}] (5.2,-1.5) -- (8.8,-1.5) node[midway,below=4pt,lbl]{WAN: PPP / HDLC on the link};
+  \draw[decorate,decoration={brace,mirror,amplitude=4pt}] (10.1,-1.5) -- (14.0,-1.5) node[midway,below=4pt,lbl]{Site B LAN};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: a WAN link between two sites. The routers' serial interfaces run a layer 2 WAN protocol over the carrier's service.}
+\end{center}
+
+\begin{itemize}
+\item \textbf{Leased line}: Dedicated, always-on point-to-point circuit rented from the telco (E1 = 2.048 Mbps, T1 = 1.544 Mbps). Guaranteed bandwidth and private, but expensive and fixed.
+\item \textbf{PPP}: Layer 2 protocol for direct links (serial, DSL as PPPoE). LCP sets up the link, NCPs carry IP and others; authentication PAP / CHAP; error detection.
+\item \textbf{HDLC}: ISO bit-oriented synchronous protocol; flag 01111110 with bit stuffing; Cisco default on serial links (proprietary version). No authentication.
+\item \textbf{X.25}: Old packet-switched VC network; error checking at \emph{every} hop, so reliable on poor lines but slow (64 kbps).
+\item \textbf{Frame Relay}: Packet-switched VCs (PVCs identified by DLCIs); no hop-by-hop error correction, so faster than X.25; CIR; congestion bits FECN/BECN; now legacy.
+\item \textbf{ATM}: Fixed 53-byte cells (5 header + 48 data); VCs; QoS classes for voice and video.
+\item \textbf{MPLS}: Routers forward on a short \textbf{label} instead of an IP lookup; label-switched paths; fast, supports QoS, traffic engineering and VPNs. Today's carrier standard.
+\item \textbf{Broadband / VPN}: DSL, cable, 4G/5G, fibre with an IPsec VPN over the Internet: cheap but best effort.
+\end{itemize}
+
+\begin{pastq}{SE2024 Q1c}{2}Explain two WAN protocols.\end{pastq}
+\begin{ans}
+\begin{enumerate}
+\item \textbf{PPP (Point-to-Point Protocol)}: a layer 2 protocol for direct links between two nodes (serial lines, PPPoE on DSL). It gives framing, error detection, link set-up with LCP, multi-protocol support with NCPs and authentication with PAP/CHAP.
+\item \textbf{HDLC (High-level Data Link Control)}: a bit-oriented synchronous data-link protocol for point-to-point links, using the flag 01111110 and bit stuffing; the default on Cisco serial interfaces.
+\end{enumerate}
+(Also accepted: Frame Relay, MPLS, X.25, ATM.)
+\end{ans}
+\sidenote{Two marks, two protocols: name + one solid sentence each. Do not write a page.}
+
+%=====================================================================
+\section{Practice questions}
+\setcounter{pq}{0}
+
+\begin{practice}{easy}{4}Distinguish between static and dynamic routing, giving one situation where each is the better choice.
+\sol \textbf{Static}: routes typed in by the administrator; no overhead and secure, but do not adapt to failures. Best for a small branch with one link to head office (a stub network with a default route).
+\textbf{Dynamic}: routers learn routes from each other with a protocol (OSPF, EIGRP) and recalculate when links fail; uses CPU and bandwidth. Best for a large network with redundant paths.
+\end{practice}
+
+\begin{practice}{easy}{3}A router learns a route to 10.1.1.0/24 from OSPF, from RIP and from a static route. Which one is placed in the routing table? Explain.
+\sol The \textbf{static route}. The router prefers the source with the lowest \textbf{administrative distance}: static 1 $<$ OSPF 110 $<$ RIP 120. Metrics are only compared between routes from the \emph{same} protocol.
+\end{practice}
+
+\begin{practice}{easy}{3}Define latency, jitter and throughput.
+\sol \textbf{Latency}: time for a packet to travel from source to destination. \textbf{Jitter}: variation in that delay between packets of a flow. \textbf{Throughput}: amount of data actually delivered per second.
+\end{practice}
+
+\begin{practice}{medium}{6}Use Dijkstra's algorithm to find the shortest paths from S. Links: S--P 4, S--Q 1, Q--P 2, P--R 1, Q--R 5, R--T 3, Q--T 8. Show the table and S's forwarding table.
+\sol
+\begin{working}
+\centering\small
+\begin{tabular}{clcccc}
+\toprule
+\textbf{Step} & $N'$ & \textbf{P} & \textbf{Q} & \textbf{R} & \textbf{T}\\\midrule
+0 & S & 4, S & \textbf{1, S} & $\infty$ & $\infty$\\
+1 & S Q & \textbf{3, Q} & & 6, Q & 9, Q\\
+2 & S Q P & & & \textbf{4, P} & 9, Q\\
+3 & S Q P R & & & & \textbf{7, R}\\
+4 & S Q P R T & & & & \\
+\bottomrule
+\end{tabular}
+\begin{align*}
+D(P) &= \min(4,\ 1+2) = 3 && \cmt{via Q beats the direct link}\\
+D(R) &= \min(6,\ 3+1) = 4;\quad D(T) = \min(9,\ 4+3) = 7
+\end{align*}
+\end{working}
+Forwarding table of S: P via Q (3), Q via Q (1), R via Q (4, path S--Q--P--R), T via Q (7, path S--Q--P--R--T).
+\end{practice}
+
+\begin{practice}{medium}{6}Router X has neighbours Y (link cost 1) and Z (link cost 4). Y advertises \{X 1, Y 0, Z 2, W 6\} and Z advertises \{X 4, Y 2, Z 0, W 1\}. Compute X's new distance vector and next hops.
+\sol
+\begin{working}
+\begin{align*}
+D_X(Y) &= \min(1+0,\ 4+2) = 1 \text{ via Y}\\
+D_X(Z) &= \min(1+2,\ 4+0) = 3 \text{ via Y} && \cmt{direct link 4 is worse}\\
+D_X(W) &= \min(1+6,\ 4+1) = 5 \text{ via Z}
+\end{align*}
+\end{working}
+X's vector: \{X 0, Y 1, Z 3, W 5\}; next hops Y, Y, Z.
+\end{practice}
+
+\begin{practice}{medium}{5}A host is shaped by a token bucket of capacity 400 KB filled at 4 MB/s. Its line can send at 20 MB/s. How long can it send at full speed when the bucket starts full, and how much data does that burst carry?
+\sol
+\begin{working}
+\begin{align*}
+S &= \frac{b}{M-r} = \frac{400\text{ KB}}{(20-4)\text{ MB/s}}\\
+&= \frac{0.4}{16} = 0.025\text{ s} = \mathbf{25\text{ ms}}\\
+\text{burst} &= M \times S = 20 \times 0.025 = \mathbf{0.5\text{ MB}} && \cmt{400 KB saved + 100 KB new}
+\end{align*}
+\end{working}
+After the burst the host sends at the token rate, 4 MB/s.
+\end{practice}
+
+\begin{practice}{medium}{6}Explain how OSPF builds its routing table and why it uses areas.
+\sol (1) Routers send Hellos to form adjacencies (DR/BDR on LANs). (2) Each router floods LSAs describing its links and their cost. (3) All routers in an area build an identical link-state database. (4) Each runs Dijkstra SPF with itself as root to get a shortest-path tree, and installs the best routes (cost $= 10^8/$BW). (5) Changes trigger new LSAs only, so convergence is fast. \textbf{Areas}: LSAs stay inside an area, so LSDBs are smaller, SPF runs less often and faults are contained; all areas connect to backbone area 0.
+\end{practice}
+
+\begin{practice}{hard}{10}With the aid of a diagram, explain the count-to-infinity problem in distance-vector routing and describe three techniques used to solve it.
+\sol \textbf{Diagram}: R1--R2--R3--Net N, cost 1 per hop, as in Section~\ref{sec:dv}. Before the failure R2 reaches N in 2 hops and R1 in 3.
+\textbf{Problem}: the R2--R3 link fails, so R2 loses its route to N. Before R2 can tell R1, R1 advertises ``N in 3''. R2 does not know that R1's route goes through R2 itself, so it installs N = 4 via R1. R1 then hears ``4'' from R2 and raises its cost to 5, R2 goes to 6, and so on. A \textbf{routing loop} forms: packets for N bounce between R1 and R2 while the count creeps up to infinity (16 in RIP). Bad news travels slowly because DV routers only know what neighbours tell them.
+\textbf{Solutions} (2 marks each):
+(1) \textbf{Split horizon}: R1 learned N from R2, so it never advertises N back to R2.
+(2) \textbf{Route poisoning + poison reverse}: R3 advertises N with metric 16 at once; neighbours echo it back with 16.
+(3) \textbf{Hold-down timers}: ignore worse news about a failed route for 180 s.
+Also: \textbf{triggered updates} and a \textbf{maximum hop count} of 15.
+\end{practice}
+
+\begin{practice}{hard}{12}A company must connect its head office in Harare to branches in Bulawayo and Mutare. Compare a leased line, Frame Relay, MPLS and an Internet VPN for this, and recommend one with reasons. Include a diagram.
+\sol \textbf{Diagram}: like the WAN figure in Section 10, but with three sites, each with its own LAN, router and access link into one provider cloud.\par
+\begin{tabularx}{\linewidth}{@{}>{\bfseries\raggedright\arraybackslash}p{1.8cm}XXX@{}}
+\toprule
+ & Cost & Performance / QoS & Comment\\\midrule
+Leased line & Highest; one line per pair of sites (3 lines for full mesh) & Guaranteed, private & Does not scale\\
+Frame Relay & Medium; one access line with PVCs & CIR guaranteed; no error correction & Legacy, being withdrawn\\
+MPLS & Medium; any-to-any through one access link & Label switching, QoS classes, SLA & Carrier standard\\
+Internet VPN & Lowest & Best effort; IPsec gives privacy & Good backup\\
+\bottomrule
+\end{tabularx}
+\textbf{Recommendation}: \textbf{MPLS} as the main WAN: any-to-any connectivity, QoS for voice and ERP, an SLA from the provider, and easy to add sites; with an \textbf{IPsec VPN over broadband} as a cheap backup link. Run PPP or Ethernet on the access links and OSPF/EIGRP between sites.
+\end{practice}
+
+\begin{practice}{hard}{10}(a) Calculate the EIGRP metric of a path whose slowest link is a T1 (1544 kbps) and whose total delay is 20\,100\,$\mu$s. (b) Router R has three routes to 10.5.0.0/16: via B (link 10, RD 20), via C (link 10, RD 25), via D (link 5, RD 35). Identify the successor and any feasible successor.
+\sol
+\begin{working}
+\begin{align*}
+\text{(a) } \frac{10^7}{1544} &= 6476 && \cmt{truncate}\\
+\frac{20\,100\ \mu s}{10} &= 2010 && \cmt{tens of $\mu$s}\\
+\text{metric} &= 256\times(6476 + 2010)\\
+&= 256 \times 8486 = \mathbf{2\,172\,416}\\
+\text{(b) FD}_B &= 10+20 = 30 && \cmt{FD = link + RD}\\
+\text{FD}_C &= 10+25 = 35,\quad \text{FD}_D = 5+35 = 40\\
+\text{successor} &= \textbf{B} \;(\text{lowest FD} = 30)\\
+\text{RD}_C &= 25 < 30 \Rightarrow \textbf{C is feasible successor}\\
+\text{RD}_D &= 35 \not< 30 \Rightarrow \text{D is not} && \cmt{might loop via R}
+\end{align*}
+\end{working}
+If B fails, R switches to C immediately without recomputing; D would only be used after DUAL queries.
+\end{practice}
+
+\begin{practice}{hard}{12}A hospital network carries VoIP, video consultations, patient-record database traffic and staff web browsing over one congested WAN link. Design a QoS policy for it.
+\sol
+\begin{enumerate}
+\item \textbf{Classify and mark} at the edge with DiffServ: VoIP = EF (46), video = AF41, database = AF31, web = best effort (0).
+\item \textbf{Queuing}: low-latency (strict priority) queue for voice, capped at about 30\% of the link so it cannot starve others; class-based weighted fair queuing for video and database; web gets what is left.
+\item \textbf{Shaping / policing}: token bucket on video and web so bursts do not fill queues; police web downloads.
+\item \textbf{Congestion avoidance}: WRED on the data queues so TCP flows slow down early instead of tail drop.
+\item \textbf{Admission control}: refuse a new video call if the video class is full rather than degrade every call.
+\item \textbf{Targets}: voice one-way delay $<$ 150 ms, jitter $<$ 30 ms, loss $<$ 1\%; monitor with SNMP and get them written into the carrier's SLA. Long-term: add bandwidth or a second link.
+\end{enumerate}
+\end{practice}
+
+%=====================================================================
+\newpage
+\begin{cheatsheet}
+\small
+\begin{tabularx}{\linewidth}{@{}XX@{}}
+\textbf{Routing table sources}: Connected (C, AD 0), Static (S, 1), Dynamic: EIGRP 90, OSPF 110, RIP 120. Lowest AD wins.
+
+\textbf{Classes}: flooding, static (non-adaptive), dynamic (adaptive).
+\textbf{Goals}: optimality, simplicity, robustness, rapid convergence, flexibility.
+\textbf{Metrics}: hop count, reliability, delay, bandwidth, load, cost.
+
+\textbf{DV vs LS}
+\begin{itemize}
+\item DV: whole table, neighbours, periodic, Bellman-Ford, slow, loops (RIP)
+\item LS: LSAs, flood to all, on change, Dijkstra, fast, more CPU (OSPF)
+\end{itemize}
+\textbf{Table 1}: RIPv1 DV hop count (max 15); EIGRP adv.\ DV bandwidth + delay; OSPF LS cost $=10^8/$BW.
+
+\textbf{Dijkstra}: add the cheapest node, update $D(v)=\min(D(v), D(w)+c(w,v))$, keep predecessor.
+
+\textbf{Bellman-Ford}: $D_x(y)=\min_v\{c(x,v)+D_v(y)\}$.
+
+\textbf{Count-to-infinity fixes}: max 15 hops, split horizon, route poisoning, poison reverse, hold-down, triggered updates.
+
+\textbf{RIPv2}: 30 s full table, 224.0.0.9, UDP 520, classless, MD5; timers 30/180/180/240.
+
+\textbf{EIGRP}: hellos 224.0.0.10, 3 tables, DUAL; successor = lowest FD; feasible successor if RD $<$ FD.
+&
+\textbf{Congestion}: load $>$ capacity $\Rightarrow$ delay, drops.
+Open loop (prevent): retransmission, window, ACK, discard policies, admission control, shaping.
+Closed loop (remove): backpressure, choke packet, implicit/explicit (ECN) signalling, RED.
+
+\textbf{Leaky bucket}: constant output $r$, drops packets. \textbf{Token bucket}: bursts up to $b$, drops tokens, $S = b/(M-r)$.
+
+\textbf{QoS parameters}: bandwidth/throughput, latency, jitter, packet loss (+ reliability).
+\textbf{Best effort}: no guarantees, all equal, drop on congestion.
+\textbf{VoIP}: low BW, delay $<$ 150 ms, jitter $<$ 30 ms, loss $<$ 1\%, EF. \textbf{Video}: high BW, bursty, streaming buffers.
+IntServ (RSVP, per flow) vs DiffServ (DSCP classes).
+
+\textbf{SDN}: control plane separated and centralised in a controller; northbound API (apps), southbound API (OpenFlow) to switches.
+
+\textbf{ISP tiers}: T1 backbone, peer free; T2 regional, buy transit, IXPs; T3 local access. BGP between ASes.
+
+\textbf{SLA}: contract; uptime, bandwidth, latency/jitter/loss, repair times, penalties.
+
+\textbf{WAN}: leased line, PPP (LCP/NCP, PAP/CHAP), HDLC (flag 01111110), X.25, Frame Relay (DLCI, PVC), ATM (53-B cells), MPLS (labels, QoS, VPN).
+\end{tabularx}
+\end{cheatsheet}
+
+\end{document}

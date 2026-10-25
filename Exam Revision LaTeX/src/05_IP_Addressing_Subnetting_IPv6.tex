@@ -1,0 +1,616 @@
+\documentclass[10pt]{article}
+\usepackage{dcn}
+\begin{document}
+
+\packtitle{05}{Network Layer: IPv4, Subnetting/VLSM, IPv6 \& DHCP}
+  {Course outline weeks 5--7: internetworking, the IP packet, IP addressing, IPv6}{VERY HIGH}
+
+A subnetting calculation has appeared in \hl{every} paper (4--12 marks). This is the topic that wins or loses the exam.
+The marks are mostly for the \emph{working}, so this pack shows every step and why you do it.
+
+\subsection*{How often this topic is examined}
+\begin{tabularx}{\linewidth}{@{}Xll@{}}
+\toprule
+\textbf{Question asked} & \textbf{Paper(s)} & \textbf{Marks}\\
+\midrule
+Subnetting calculation (subnets, hosts, ranges, broadcast) & 2018 Q3a, 2023 Q1d, Q3c, ISA2024 Q1d, 2025 Q4a & 4--12\\
+IPv4 header: draw it + purpose of fields & 2023 Q1a, ISA2024 Q1a & 6--7\\
+IPv6 header diagram & 2018 Q1d & 5\\
+Advantages of IPv6 over IPv4 & 2023 Q1b & 5\\
+Shorten IPv6 addresses & 2023 Q5e, ISA2024 Q3a & 1--2\\
+SLAAC vs DHCPv6 & 2025 Q3b, ISA2024 Q5d & 6--8\\
+Purpose \& benefits of subnetting & 2025 Q4b, ISA2024 Q2b & 5--6\\
+Network segmentation & ISA2024 Q1b & 6\\
+Define ARP & 2018 Q3b(iii) & 3\\
+DHCP four-step (DORA) with diagrams & 2018 Q4a & 10\\
+Static vs dynamic IP & SE2024 Q1b(iv) & 2\\
+\bottomrule
+\end{tabularx}
+
+\begin{examtip}
+Practise the method in Section~\ref{sec:method} until a full subnetting question takes you under 10 minutes.
+Always write the binary mask, the block size and a results table.
+\end{examtip}
+
+%=====================================================================
+\section{IPv4 addressing basics}
+
+An IPv4 address is a \textbf{32-bit logical address} written as four 8-bit octets in dotted decimal.
+It has a \textbf{network part} (which network) and a \textbf{host part} (which device on it).
+The \textbf{subnet mask} marks network bits with 1s and host bits with 0s.
+
+\begin{center}
+\begin{tikzpicture}[x=4.6mm,y=7mm]
+  \foreach \i in {0,...,31}{
+    \pgfmathsetmacro{\fillc}{\i<24 ? "peach" : "cream"}
+    \draw[fill=\fillc] (\i,0) rectangle ++(1,1);
+  }
+  \foreach \b [count=\k from 0] in {1,1,0,0,0,0,0,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,1,0}
+    \node[font=\scriptsize] at (\k+0.5,0.5) {\b};
+  \foreach \o/\v in {0/192,8/168,16/1,24/10}
+    \node[font=\small\bfseries] at (\o+4,1.5) {\v};
+  \draw[decorate,decoration={brace,mirror,amplitude=4pt}] (0,-0.1) -- (24,-0.1)
+     node[midway,below=4pt,lbl]{network part (24 bits) \quad mask 255.255.255.0 = /24};
+  \draw[decorate,decoration={brace,mirror,amplitude=4pt}] (24,-0.1) -- (32,-0.1)
+     node[midway,below=4pt,lbl]{host part (8)};
+\end{tikzpicture}
+\end{center}
+
+\sidenote{Each octet is 8 bits, so it can only be 0--255. If you see 256 in an address, it is wrong.}
+
+\begin{tabularx}{\linewidth}{@{}lllllX@{}}
+\toprule
+\textbf{Class} & \textbf{1st octet} & \textbf{Lead bits} & \textbf{Default mask} & \textbf{Hosts/net} & \textbf{Private range}\\
+\midrule
+A & 1--126 & 0 & 255.0.0.0 (/8) & 16\,777\,214 & 10.0.0.0 -- 10.255.255.255\\
+B & 128--191 & 10 & 255.255.0.0 (/16) & 65\,534 & 172.16.0.0 -- 172.31.255.255\\
+C & 192--223 & 110 & 255.255.255.0 (/24) & 254 & 192.168.0.0 -- 192.168.255.255\\
+D & 224--239 & 1110 & -- & multicast & --\\
+E & 240--255 & 1111 & -- & reserved & --\\
+\bottomrule
+\end{tabularx}
+
+\sidenote{127.x.x.x is \textbf{loopback} (127.0.0.1 = this computer). That is why class A stops at 126.}
+
+\begin{itemize}
+\item \textbf{Network address} = all host bits 0. \textbf{Broadcast address} = all host bits 1. Neither can be given to a host, so usable hosts $= 2^h - 2$.
+\item \textbf{Classless (CIDR)}: no fixed classes; the prefix /n says how many bits are network, e.g.\ 14.24.74.0/24. Gives efficient allocation and route aggregation (supernetting).
+\item \textbf{NAT}: a router translates private addresses to one public address, so many hosts share it. Saves IPv4 addresses and hides internal hosts.
+\end{itemize}
+
+\begin{pastq}{SE2024 Q1b(iv)}{2}Differentiate between a static and a dynamic IP address.\end{pastq}
+\begin{ans}
+\begin{tabularx}{\linewidth}{@{}XX@{}}
+\toprule
+\textbf{Static IP} & \textbf{Dynamic IP}\\\midrule
+Configured manually; does not change & Assigned automatically by a DHCP server for a lease; may change\\
+Used for servers, printers, routers (things others must find) & Used for client PCs and phones\\
+More admin work; risk of conflicts & Easy to manage; addresses reused efficiently\\
+\bottomrule
+\end{tabularx}
+\end{ans}
+
+\begin{pastq}{2025 Q4b \textnormal{/} ISA2024 Q2b}{5--6}Explain the purpose of subnetting and the benefits it provides to network administrators. / Discuss the concept of IP addressing and subnetting.\end{pastq}
+\begin{ans}
+\textbf{Subnetting} divides one large network into smaller logical networks (subnets) by \textbf{borrowing bits from the host part}, giving a longer subnet mask.
+\begin{enumerate}
+\item \textbf{Less broadcast traffic}: each subnet is its own broadcast domain, so performance improves and congestion drops.
+\item \textbf{Efficient use of addresses}: each department gets the right-sized block (VLSM), so less is wasted.
+\item \textbf{Security}: traffic between subnets passes through a router or firewall where ACLs apply; sensitive departments are isolated.
+\item \textbf{Easier management and troubleshooting}: a fault stays inside one subnet; the network is organised by department, floor or site.
+\item \textbf{Scalability}: new subnets are easy to add; route summarisation keeps routing tables small.
+\end{enumerate}
+\end{ans}
+
+\begin{pastq}{ISA2024 Q1b}{6}Explain the concept of network segmentation.\end{pastq}
+\begin{ans}
+\textbf{Network segmentation} splits one flat network into smaller, isolated segments, each with its own broadcast domain and its own security rules. Traffic between segments must pass a controlled point (router, layer-3 switch or firewall).
+\begin{itemize}
+\item \textbf{How}: physically (separate switches/routers), at layer 2 with \textbf{VLANs}, at layer 3 with \textbf{IP subnets}, or with firewalls/ACLs (micro-segmentation in data centres).
+\item \textbf{Performance}: smaller broadcast domains mean less broadcast traffic and fewer collisions.
+\item \textbf{Security}: an attacker or worm that gets into one segment cannot freely reach the others; sensitive systems (servers, finance, CCTV) sit in their own zone, e.g.\ a \textbf{DMZ} for public servers.
+\item \textbf{Containment and troubleshooting}: faults stay inside one segment; easier monitoring.
+\item \textbf{Compliance}: e.g.\ card-payment systems kept separate (PCI DSS).
+\end{itemize}
+\textit{Example}: a university puts Staff (VLAN 10, 10.1.10.0/24), Students (VLAN 20, 10.1.20.0/24) and Servers (VLAN 30) in separate segments; a firewall only lets students reach the web server, not the finance server.
+\end{ans}
+\sidenote{Segmentation is the \textbf{security} word for subnetting/VLANs. In an ISA exam, always mention containing attacks.}
+
+%=====================================================================
+\section{The subnetting method (learn this)}\label{sec:method}
+
+\begin{center}
+\begin{tabular}{l|*{8}{c}}
+\rowcolor{cream}\textbf{Bits borrowed in the octet} & 1 & 2 & 3 & 4 & 5 & 6 & 7 & 8\\\hline
+\textbf{Mask octet value} & 128 & 192 & 224 & 240 & 248 & 252 & 254 & 255\\
+\textbf{Block size} $= 256 - \text{mask}$ & 128 & 64 & 32 & 16 & 8 & 4 & 2 & 1\\
+\end{tabular}
+
+\smallskip
+\begin{tabular}{*{7}{c}}
+\rowcolor{peach!40}/24 & /25 & /26 & /27 & /28 & /29 & /30\\
+254 & 126 & 62 & 30 & 14 & 6 & 2\\
+\end{tabular}\\[-2pt]
+{\scriptsize\color{midgrey}usable hosts per prefix (last octet)}
+\end{center}
+
+\begin{working}[The five formulas]
+\begin{align*}
+s &= \text{new prefix} - \text{default prefix} && \cmt{bits borrowed}\\
+\text{subnets} &= 2^{s} && \\
+h &= 32 - \text{prefix} && \cmt{host bits left}\\
+\text{usable hosts} &= 2^{h} - 2 && \cmt{minus network \& broadcast}\\
+\text{block size} &= 256 - \text{mask value in the interesting octet} && \cmt{the octet that is not 255 or 0}
+\end{align*}
+\end{working}
+
+\begin{mnemonic}
+Subnets count up in block sizes. \textbf{Network} = a multiple of the block.
+\textbf{Broadcast} = next network $-1$. \textbf{First host} = network $+1$. \textbf{Last host} = broadcast $-1$.
+\end{mnemonic}
+
+\begin{trap}
+\begin{itemize}
+\item Using $2^h$ instead of $2^h - 2$ for usable hosts.
+\item Putting the block size in the wrong octet. For a /22 the interesting octet is the \textbf{third}, so the 4th octet of the broadcast is \textbf{255}, not 3.
+\item Counting borrowed bits from /0 instead of from the class default.
+\end{itemize}
+\end{trap}
+
+%=====================================================================
+\section{Worked past-paper calculations}
+
+\begin{pastq}{2025 Q4a}{12}Given the network 172.16.0.0 with a subnet mask of 255.255.252.0:
+(i) which class? (ii) number of possible subnets (iii) usable hosts per subnet
+(iv) network \& broadcast addresses for the first two subnets (v) valid host ranges for the first three subnets.\end{pastq}
+\begin{ans}
+\begin{working}
+\begin{align*}
+255.255.252.0 &= 11111111.11111111.\underbrace{111111}_{s=6}\underbrace{00.00000000}_{h=10} = /22 && \cmt{count the 1s}\\
+\text{(i) } 172 &\in 128\text{--}191 \Rightarrow \textbf{Class B} && \cmt{default /16}\\
+\text{(ii) } s &= 22 - 16 = 6,\quad 2^{6} = \mathbf{64} \text{ subnets}\\
+\text{(iii) } h &= 32 - 22 = 10,\quad 2^{10} - 2 = \mathbf{1022} \text{ hosts} && \cmt{$1024-2$}\\
+\text{block} &= 256 - 252 = 4 && \cmt{in the 3rd octet!}
+\end{align*}
+\end{working}
+\sidenote{Third octet goes 0, 4, 8, 12, \dots{} Each subnet spans 4 values of the 3rd octet $\times$ 256 = 1024 addresses.}
+\begin{center}\small
+\begin{tabular}{ccccc}
+\toprule
+\textbf{Subnet} & \textbf{Network} & \textbf{First host} & \textbf{Last host} & \textbf{Broadcast}\\\midrule
+1 & 172.16.0.0 & 172.16.0.1 & 172.16.3.254 & 172.16.3.255\\
+2 & 172.16.4.0 & 172.16.4.1 & 172.16.7.254 & 172.16.7.255\\
+3 & 172.16.8.0 & 172.16.8.1 & 172.16.11.254 & 172.16.11.255\\
+\bottomrule
+\end{tabular}
+\end{center}
+(iv) Subnet 1: 172.16.0.0 / 172.16.3.255. Subnet 2: 172.16.4.0 / 172.16.7.255.\\
+(v) 172.16.0.1--172.16.3.254; \ 172.16.4.1--172.16.7.254; \ 172.16.8.1--172.16.11.254.
+\end{ans}
+
+\begin{pastq}{ISA2024 Q1d}{6}You have sub-netted your class C network 192.168.1.0 with a subnet mask of 255.255.255.240.
+Calculate (i) number of networks (ii) hosts per network (iii) the full range of the first three networks (iv) the usable address ranges of those networks.\end{pastq}
+\begin{ans}
+\begin{working}
+\begin{align*}
+240 &= 11110000 \Rightarrow /28 && \cmt{4 borrowed, 4 host bits}\\
+\text{(i) networks} &= 2^{4} = \mathbf{16}\\
+\text{(ii) hosts} &= 2^{4} - 2 = \mathbf{14}\\
+\text{block} &= 256 - 240 = 16 && \cmt{networks at .0, .16, .32 \dots}
+\end{align*}
+\end{working}
+\begin{center}\small
+\begin{tabular}{ccc}
+\toprule
+\textbf{Net} & \textbf{Full range (network -- broadcast)} & \textbf{Usable hosts}\\\midrule
+1 & 192.168.1.0 -- 192.168.1.15 & 192.168.1.1 -- 192.168.1.14\\
+2 & 192.168.1.16 -- 192.168.1.31 & 192.168.1.17 -- 192.168.1.30\\
+3 & 192.168.1.32 -- 192.168.1.47 & 192.168.1.33 -- 192.168.1.46\\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{ans}
+
+\begin{pastq}{2023 Q3c}{4}A host was given the IP address 198.168.4.121/27. Indicate (i) the network address (ii) the broadcast address (iii) the total number of hosts available (iv) whether 192.168.4.93 can be the default gateway of the host. Explain.\end{pastq}
+\begin{ans}
+\begin{working}
+\begin{align*}
+/27 &\Rightarrow 255.255.255.224,\quad \text{block} = 256-224 = 32\\
+\text{networks} &: 0,\ 32,\ 64,\ 96,\ 128,\dots && \cmt{121 lies in 96--127}\\
+\text{(i) network} &= \mathbf{198.168.4.96}\\
+\text{(ii) broadcast} &= 128 - 1 \Rightarrow \mathbf{198.168.4.127} && \cmt{next network $-1$}\\
+\text{(iii) hosts} &= 2^{5} - 2 = \mathbf{30} && \cmt{.97 -- .126}
+\end{align*}
+\end{working}
+(iv) \textbf{No.} A default gateway must be in the \textbf{same subnet} as the host. 192.168.4.93 has a different network part (192 vs 198), and even its last octet (.93) falls in the .64--.95 subnet, not .96--.127. A valid gateway would be e.g.\ 198.168.4.97.
+\end{ans}
+\sidenote{The paper prints \textbf{198}.168 for the host but \textbf{192}.168 for the gateway, which may be a typo. Either way the answer is \textbf{No}: .93 is in the .64--.95 subnet, not .96--.127.}
+
+\subsection{VLSM: different-sized subnets}
+
+\begin{mnemonic}
+\textbf{VLSM rule}: sort requirements \textbf{largest first}; give each the smallest block where $2^h - 2 \ge$ hosts needed; allocate blocks one after the other.
+\end{mnemonic}
+
+\begin{pastq}{2023 Q1d}{6}Considering IPv4 classless addressing, an organisation is granted the block 14.24.74.0/24. It needs 3 subnets: one of 120 addresses, one of 60 and one of 10. Show the network address and subnet mask of each subnet using VLSM. Show all working.\end{pastq}
+\begin{ans}
+\begin{working}
+\begin{align*}
+120 + 2 \le 128 = 2^{7} &\Rightarrow h=7 \Rightarrow /25 \;(255.255.255.128) && \cmt{$2^6=64$ is too small}\\
+60 + 2 \le 64 = 2^{6} &\Rightarrow h=6 \Rightarrow /26 \;(255.255.255.192)\\
+10 + 2 \le 16 = 2^{4} &\Rightarrow h=4 \Rightarrow /28 \;(255.255.255.240) && \cmt{$2^3=8$ too small}
+\end{align*}
+\end{working}
+\begin{center}\small
+\begin{tabular}{lllll}
+\toprule
+\textbf{Need} & \textbf{Network} & \textbf{Mask} & \textbf{Usable hosts} & \textbf{Broadcast}\\\midrule
+120 & 14.24.74.0/25 & 255.255.255.128 & .1 -- .126 & .127\\
+60 & 14.24.74.128/26 & 255.255.255.192 & .129 -- .190 & .191\\
+10 & 14.24.74.192/28 & 255.255.255.240 & .193 -- .206 & .207\\
+\bottomrule
+\end{tabular}
+\end{center}
+\begin{center}
+\begin{tikzpicture}[x=0.52mm,y=7mm]
+  \draw[fill=brand] (0,0) rectangle (128,1) node[midway,text=white,font=\scriptsize\bfseries]{/25 \; .0--.127};
+  \draw[fill=peach] (128,0) rectangle (192,1) node[midway,font=\scriptsize\bfseries]{/26 \; .128--.191};
+  \draw[fill=easyc] (192,0) rectangle (208,1) node[midway,font=\tiny]{/28};
+  \draw[fill=cream] (208,0) rectangle (256,1) node[midway,font=\scriptsize]{free};
+  \foreach \x in {0,128,192,208,256} \node[font=\tiny,below] at (\x,0){\x};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}The /24 address space after VLSM: 48 addresses (.208--.255) left for growth.}
+\end{center}
+\end{ans}
+
+\begin{pastq}{2018 Q3a}{10}Company ABC has: Accounts 10, HR 4, IT 4, Sales \& Marketing 20 employees. Using 192.168.0.0/24, design a subnetting scheme that does not waste addresses and caters for an additional two members in each subnet.\end{pastq}
+\begin{ans}
+\begin{working}
+\begin{align*}
+\text{Sales } 20+2 = 22 &\Rightarrow 2^{5}-2 = 30 \Rightarrow /27 && \cmt{biggest first}\\
+\text{Accounts } 10+2 = 12 &\Rightarrow 2^{4}-2 = 14 \Rightarrow /28\\
+\text{HR } 4+2 = 6 &\Rightarrow 2^{3}-2 = 6 \Rightarrow /29 && \cmt{exactly fits}\\
+\text{IT } 4+2 = 6 &\Rightarrow 2^{3}-2 = 6 \Rightarrow /29
+\end{align*}
+\end{working}
+\begin{center}\small
+\begin{tabular}{lllll}
+\toprule
+\textbf{Dept} & \textbf{Network} & \textbf{Mask} & \textbf{Usable hosts} & \textbf{Broadcast}\\\midrule
+Sales & 192.168.0.0/27 & 255.255.255.224 & .1 -- .30 & .31\\
+Accounts & 192.168.0.32/28 & 255.255.255.240 & .33 -- .46 & .47\\
+HR & 192.168.0.48/29 & 255.255.255.248 & .49 -- .54 & .55\\
+IT & 192.168.0.56/29 & 255.255.255.248 & .57 -- .62 & .63\\
+\bottomrule
+\end{tabular}
+\end{center}
+Total used: 64 addresses; 192.168.0.64--.255 is free for future subnets.
+\end{ans}
+\sidenote{\textbf{State your assumption.} If each subnet also needs a router/gateway address, HR and IT need 7 $\to$ /28 each (HR .48/28, IT .64/28).}
+
+%=====================================================================
+\section{The IPv4 header}
+
+\begin{pastq}{ISA2024 Q1a \textnormal{/} 2023 Q1a}{6--7}Draw the typical structure of an IP header and state the purpose of: Version, Differentiated Services, Time to Live, Protocol, Source and Destination IP addresses.\end{pastq}
+
+\begin{center}
+\begin{tikzpicture}[x=3.6mm,y=7.5mm]
+  \foreach \b in {0,4,8,16,19,31}{\node[font=\tiny] at (\b+0.5,0.35){\b};}
+  % row 1
+  \draw[fill=cream] (0,0) rectangle (4,-1) node[midway,font=\scriptsize]{Version};
+  \draw[fill=cream] (4,0) rectangle (8,-1) node[midway,font=\scriptsize]{IHL};
+  \draw[fill=peach] (8,0) rectangle (16,-1) node[midway,font=\scriptsize]{DS / Type of Service};
+  \draw[fill=cream] (16,0) rectangle (32,-1) node[midway,font=\scriptsize]{Total Length};
+  % row 2
+  \draw[fill=easyc!40] (0,-1) rectangle (16,-2) node[midway,font=\scriptsize]{Identification};
+  \draw[fill=easyc!40] (16,-1) rectangle (19,-2) node[midway,font=\tiny]{Flags};
+  \draw[fill=easyc!40] (19,-1) rectangle (32,-2) node[midway,font=\scriptsize]{Fragment Offset};
+  % row 3
+  \draw[fill=brand!60] (0,-2) rectangle (8,-3) node[midway,font=\scriptsize\bfseries]{TTL};
+  \draw[fill=brand!60] (8,-2) rectangle (16,-3) node[midway,font=\scriptsize\bfseries]{Protocol};
+  \draw[fill=cream] (16,-2) rectangle (32,-3) node[midway,font=\scriptsize]{Header Checksum};
+  % rows 4-6
+  \draw[fill=brand!60] (0,-3) rectangle (32,-4) node[midway,font=\scriptsize\bfseries]{Source IP Address (32 bits)};
+  \draw[fill=brand!60] (0,-4) rectangle (32,-5) node[midway,font=\scriptsize\bfseries]{Destination IP Address (32 bits)};
+  \draw[fill=white,dashed] (0,-5) rectangle (32,-6) node[midway,font=\scriptsize]{Options (variable) + Padding};
+  \draw[decorate,decoration={brace,amplitude=5pt}] (32.3,0) -- (32.3,-5) node[midway,right=6pt,lbl]{20 bytes\\minimum};
+  \draw[decorate,decoration={brace,amplitude=5pt}] (32.3,-5) -- (32.3,-6) node[midway,right=6pt,lbl]{up to\\60 B};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: IPv4 header, 32 bits wide. Orange = fields the exam asks about; yellow = fragmentation.}
+\end{center}
+
+\begin{ans}
+\small
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}lX@{}}
+\toprule
+Field & Purpose\\\midrule
+Version (4) & IP version, 4 for IPv4, so the router knows how to read the header.\\
+IHL (4) & Header length in 32-bit words (5 = 20 bytes, max 15 = 60 bytes).\\
+Differentiated Services (8) & Priority / class of service for QoS (DSCP 6 bits + ECN 2 bits), e.g.\ VoIP marked high priority.\\
+Total Length (16) & Length of the whole datagram (header + data), max 65\,535 bytes.\\
+Identification, Flags, Offset & Fragmentation and reassembly: ID groups fragments; flags DF / MF; offset gives position.\\
+Time to Live (8) & Max number of hops. Each router subtracts 1; at 0 the packet is discarded and ICMP Time Exceeded is sent. \textbf{Stops packets looping forever.}\\
+Protocol (8) & Upper-layer protocol the data belongs to: 1 = ICMP, 6 = TCP, 17 = UDP, 89 = OSPF.\\
+Header Checksum (16) & Error detection on the header only; recalculated at each router.\\
+Source IP (32) & Logical address of the original sender; used to reply.\\
+Destination IP (32) & Logical address of the final receiver; routers use it to forward.\\
+Options + Padding & Optional (security, record route, timestamp); padding keeps a multiple of 32 bits.\\
+\bottomrule
+\end{tabularx}
+\end{ans}
+\sidenote{Diagram + 1 line per field. The diagram alone is usually worth about half the marks.}
+
+%=====================================================================
+\section{IPv6}
+
+IPv6 uses \textbf{128-bit} addresses: 8 groups of 4 hex digits separated by colons, e.g.\ 2001:0DB8:0000:1470:0000:0000:0000:0200.
+Types: unicast (global 2000::/3, link-local FE80::/10, unique local FC00::/7), multicast (FF00::/8), anycast. \textbf{There is no broadcast.}
+
+\begin{working}[Address space]
+\begin{align*}
+2^{128} &\approx 3.4 \times 10^{38} \text{ addresses} && \cmt{vs $2^{32}\approx 4.3\times10^{9}$ in IPv4}
+\end{align*}
+\end{working}
+
+\subsection{Shortening rules}
+\begin{enumerate}
+\item Remove \textbf{leading} zeros in any group (0DB8 $\to$ DB8, 0000 $\to$ 0, 0200 $\to$ 200).
+\item Replace \textbf{one} run of consecutive all-zero groups with \texttt{::}. Only once per address; use it on the longest run.
+\end{enumerate}
+
+\begin{pastq}{2023 Q5e \textnormal{/} ISA2024 Q3a}{1--2}Express in shortened form:
+(i) 2001:0DB8:0000:1470:0000:0000:0000:0200
+(ii) F380:0000:0000:0000:0123:4567:89AB:CDEF
+(iii) 2001:0DB8:0000:1470:0000:0000:0000:0300\end{pastq}
+\begin{ans}
+\begin{working}
+\begin{align*}
+\text{(i) } & \text{2001:DB8:0:1470:0:0:0:200} && \cmt{rule 1}\\
+\to\ & \textbf{2001:DB8:0:1470::200} && \cmt{rule 2 on the run of 3 zeros}\\
+\text{(ii) } & \text{F380:0:0:0:123:4567:89AB:CDEF} \to \textbf{F380::123:4567:89AB:CDEF}\\
+\text{(iii) } & \textbf{2001:DB8:0:1470::300}
+\end{align*}
+\end{working}
+\end{ans}
+\begin{trap}
+2001:DB8::1470::300 is \textbf{wrong}. With two \texttt{::} the receiver cannot tell how many zeros each one hides. Also never drop \emph{trailing} zeros: 0200 $\to$ 200, not 2.
+\end{trap}
+
+\begin{pastq}{2018 Q1d}{5}Draw a fully labelled diagram of the IPv6 header.\end{pastq}
+\begin{center}
+\begin{tikzpicture}[x=3.6mm,y=7.5mm]
+  \foreach \b in {0,4,12,16,24,31}{\node[font=\tiny] at (\b+0.5,0.35){\b};}
+  \draw[fill=cream] (0,0) rectangle (4,-1) node[midway,font=\scriptsize]{Version};
+  \draw[fill=peach] (4,0) rectangle (12,-1) node[midway,font=\scriptsize]{Traffic Class};
+  \draw[fill=peach] (12,0) rectangle (32,-1) node[midway,font=\scriptsize]{Flow Label (20 bits)};
+  \draw[fill=cream] (0,-1) rectangle (16,-2) node[midway,font=\scriptsize]{Payload Length (16)};
+  \draw[fill=cream] (16,-1) rectangle (24,-2) node[midway,font=\scriptsize]{Next Header};
+  \draw[fill=brand!60] (24,-1) rectangle (32,-2) node[midway,font=\scriptsize]{Hop Limit};
+  \draw[fill=brand!60] (0,-2) rectangle (32,-4) node[midway,font=\scriptsize\bfseries]{Source Address (128 bits)};
+  \draw[fill=brand!60] (0,-4) rectangle (32,-6) node[midway,font=\scriptsize\bfseries]{Destination Address (128 bits)};
+  \draw[decorate,decoration={brace,amplitude=5pt}] (32.3,0) -- (32.3,-6) node[midway,right=6pt,lbl]{fixed\\40 bytes};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}No checksum, no fragmentation fields, no options (extension headers instead).}
+\end{center}
+\begin{itemize}
+\item \textbf{Version} = 6. \textbf{Traffic class} = priority/QoS (like IPv4 DS). \textbf{Flow label} = marks packets of one flow needing special handling (real-time audio/video).
+\item \textbf{Payload length} = bytes after the 40-byte header. \textbf{Next header} = type of the next header (like IPv4 Protocol). \textbf{Hop limit} = like TTL.
+\end{itemize}
+
+\begin{pastq}{2023 Q1b}{5}Indicate five advantages of IPv6 over IPv4.\end{pastq}
+\begin{ans}
+\begin{enumerate}
+\item \textbf{Huge address space}: 128 bits ($3.4\times10^{38}$) ends IPv4 exhaustion; no need for NAT, so true end-to-end connectivity.
+\item \textbf{Simpler fixed 40-byte header}: fewer fields, no checksum, no router fragmentation, so faster processing.
+\item \textbf{Built-in security}: IPsec (authentication and encryption) is part of the design.
+\item \textbf{Auto-configuration}: SLAAC gives plug-and-play addressing; DHCPv6 is also available.
+\item \textbf{Better QoS}: flow label and traffic class for real-time traffic.
+\end{enumerate}
+Extra: efficient multicast/anycast and no broadcast storms; Mobile IPv6; extension headers; hierarchical addressing gives smaller routing tables.
+\end{ans}
+
+%=====================================================================
+\section{SLAAC vs DHCPv6}
+
+\begin{pastq}{2025 Q3b \textnormal{/} ISA2024 Q5d}{6--8}Global unicast IPv6 addresses can be assigned dynamically using SLAAC and DHCPv6. Compare and contrast them, explaining the key differences in how they assign IPv6 addresses.\end{pastq}
+
+\begin{center}
+\begin{tikzpicture}[yscale=0.62]
+  \node[node,fill=peach] (h) at (0,0) {Host};
+  \node[node,fill=brand,text=white] (r) at (7,0) {Router};
+  \draw[midgrey,dashed] (0,-0.6) -- (0,-6.2); \draw[midgrey,dashed] (7,-0.6) -- (7,-6.2);
+  \draw[msg] (0,-1.3) -- node[above,lbl]{1. Router Solicitation (RS) to FF02::2} (7,-1.3);
+  \draw[msg] (7,-2.5) -- node[above,lbl]{2. Router Advertisement: prefix 2001:DB8:1::/64, M = 0} (0,-2.5);
+  \node[lbl,anchor=west,fill=cream,draw=midgrey] at (0.2,-3.9) {3. Host builds its \textbf{own} 64-bit interface ID (EUI-64 or random)};
+  \draw[msg,dashed] (0,-5.2) -- node[above,lbl]{4. DAD: Neighbour Solicitation, ``anyone using this?''} (7,-5.2);
+  \node[note] at (3.5,-6.4) {no reply $\Rightarrow$ address is unique. No server records it = \textbf{STATELESS}};
+\end{tikzpicture}
+
+\vspace{2mm}
+\begin{tikzpicture}[yscale=0.62]
+  \node[node,fill=peach] (h) at (0,0) {Host};
+  \node[node,fill=brand,text=white] (r) at (4,0) {Router};
+  \node[node,fill=ink,text=white] (s) at (8.5,0) {DHCPv6 server};
+  \foreach \x in {0,4,8.5}\draw[midgrey,dashed] (\x,-0.6) -- (\x,-7.4);
+  \draw[msg] (0,-1.2) -- node[above,lbl]{RS} (4,-1.2);
+  \draw[msg] (4,-2.2) -- node[above,lbl]{RA: M flag = 1} (0,-2.2);
+  \draw[msg] (0,-3.4) -- node[above,lbl,pos=0.3]{SOLICIT (FF02::1:2)} (8.5,-3.4);
+  \draw[msg] (8.5,-4.4) -- node[above,lbl,pos=0.7]{ADVERTISE} (0,-4.4);
+  \draw[msg] (0,-5.4) -- node[above,lbl,pos=0.3]{REQUEST} (8.5,-5.4);
+  \draw[msg] (8.5,-6.4) -- node[above,lbl,pos=0.7]{REPLY: address + DNS + lease} (0,-6.4);
+  \node[note] at (4.2,-7.7) {server records who has which address = \textbf{STATEFUL}; gateway still comes from the RA};
+\end{tikzpicture}
+\end{center}
+
+\begin{ans}
+\small
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}p{2.2cm}XX@{}}
+\toprule
+Point & SLAAC & DHCPv6 (stateful)\\\midrule
+Who makes the address & The host: /64 prefix from the router's RA + its own 64-bit interface ID (EUI-64 or random) & A DHCPv6 server assigns the whole address from its pool\\
+Server needed? & No, only a router sending RAs & Yes, a DHCPv6 server (or a router acting as one)\\
+State & Stateless: nobody records who has which address & Stateful: lease database, good for auditing\\
+Messages & ICMPv6 RS / RA; DAD with Neighbour Solicitation & Solicit, Advertise, Request, Reply (UDP 546/547)\\
+DNS etc. & Limited: RDNSS option, or stateless DHCPv6 (O = 1) & Gives DNS, domain name and other options\\
+RA flags & M = 0 & M = 1 (managed)\\
+Control & Simple, plug-and-play, scales easily & More admin control; easier to manage and secure\\
+\bottomrule
+\end{tabularx}
+\textbf{Similarities}: both are dynamic, both rely on the RA, both give global unicast addresses, and in both the gateway comes from the RA.
+\end{ans}
+\sidenote{``Compare \textbf{and contrast}'' means list a similarity too. One line of similarities earns easy marks.}
+
+%=====================================================================
+\section{DHCP (IPv4): the DORA process}
+
+\begin{pastq}{2018 Q4a}{10}Describe the DHCP four-step process with the aid of diagrams.\end{pastq}
+\begin{center}
+\begin{tikzpicture}[yscale=0.62]
+  \node[node,fill=peach] (c) at (0,0) {DHCP client\\{\scriptsize IP 0.0.0.0}};
+  \node[node,fill=brand,text=white] (s) at (8,0) {DHCP server};
+  \draw[midgrey,dashed] (0,-0.8) -- (0,-6); \draw[midgrey,dashed] (8,-0.8) -- (8,-6);
+  \draw[msg] (0,-1.5) -- node[above,lbl]{\textbf{1. DISCOVER} (broadcast 255.255.255.255): is there a server?} (8,-1.5);
+  \draw[msg] (8,-2.7) -- node[above,lbl]{\textbf{2. OFFER}: 192.168.1.50, mask, gateway, DNS, lease} (0,-2.7);
+  \draw[msg] (0,-3.9) -- node[above,lbl]{\textbf{3. REQUEST} (broadcast): I accept 192.168.1.50} (8,-3.9);
+  \draw[msg] (8,-5.1) -- node[above,lbl]{\textbf{4. ACK}: confirmed, lease starts} (0,-5.1);
+  \node[note] at (4,-6.3) {client now uses 192.168.1.50/24. UDP 67 (server) / 68 (client). Renews at 50\% of lease};
+\end{tikzpicture}
+\end{center}
+\begin{ans}
+DHCP automatically gives hosts an IP address, subnet mask, default gateway, DNS server and lease time.
+\begin{enumerate}
+\item \textbf{Discover}: the new client broadcasts DHCPDISCOVER (source 0.0.0.0, destination 255.255.255.255) to find a server.
+\item \textbf{Offer}: each server replies with DHCPOFFER: an available IP, mask, gateway, DNS and lease time.
+\item \textbf{Request}: the client picks one offer and broadcasts DHCPREQUEST, so other servers know they were declined.
+\item \textbf{Acknowledge}: the chosen server sends DHCPACK and the client configures itself. If the address is gone, it gets DHCPNAK and starts again.
+\end{enumerate}
+Extra marks: renewal at 50\% (unicast REQUEST), rebinding at 87.5\%; DHCPRELEASE on shutdown; a relay agent (\texttt{ip helper-address}) forwards broadcasts to a server on another subnet.
+\end{ans}
+\begin{mnemonic}\textbf{DORA}: Discover, Offer, Request, Acknowledge. Client \textbf{68}, server \textbf{67}.\end{mnemonic}
+
+%=====================================================================
+\section{ARP: from IP address to MAC address}
+
+\begin{pastq}{2018 Q3b(iii)}{3}Define ARP.\end{pastq}
+\begin{center}
+\begin{tikzpicture}[yscale=0.62]
+  \node[node,fill=peach] (a) at (0,0) {Host A\\{\scriptsize 192.168.1.10}};
+  \node[node,fill=cream] (b) at (8,0) {Host B\\{\scriptsize 192.168.1.20}};
+  \draw[midgrey,dashed] (0,-0.8) -- (0,-3.6); \draw[midgrey,dashed] (8,-0.8) -- (8,-3.6);
+  \draw[msg] (0,-1.5) -- node[above,lbl]{ARP Request (\textbf{broadcast} FF:FF:FF:FF:FF:FF): who has 192.168.1.20?} (8,-1.5);
+  \draw[msg] (8,-2.8) -- node[above,lbl]{ARP Reply (\textbf{unicast}): 192.168.1.20 is at 00:1A:2B:3C:4D:5E} (0,-2.8);
+  \node[note] at (4,-3.9) {A stores the mapping in its ARP cache (\texttt{arp -a}) and can now build the frame};
+\end{tikzpicture}
+\end{center}
+\begin{ans}
+\textbf{ARP (Address Resolution Protocol)} finds the \textbf{MAC (physical) address} that belongs to a known \textbf{IPv4 address} on the local network. The sender broadcasts an ARP request; the owner of that IP replies by unicast with its MAC; the result is cached in the ARP table. It links layer 3 to layer 2, because a frame needs a destination MAC. (In IPv6, Neighbour Discovery does this job.)
+\end{ans}
+\sidenote{If the destination is on \textbf{another} network, the host ARPs for the \textbf{default gateway's} MAC, not the remote host's.}
+
+%=====================================================================
+\section{Practice questions}
+\setcounter{pq}{0}
+
+\begin{practice}{easy}{2}How many usable hosts does a /26 subnet give? Show the formula.
+\sol $h = 32 - 26 = 6$, \ $2^{6} - 2 = \mathbf{62}$ hosts.
+\end{practice}
+
+\begin{practice}{easy}{3}State the class and default mask of: (a) 10.4.5.6 (b) 150.1.1.1 (c) 200.9.9.9.
+\sol (a) Class A, 255.0.0.0 \ (b) Class B, 255.255.0.0 \ (c) Class C, 255.255.255.0.
+\end{practice}
+
+\begin{practice}{easy}{2}Shorten FE80:0000:0000:0000:0202:B3FF:FE1E:8329.
+\sol \textbf{FE80::202:B3FF:FE1E:8329}
+\end{practice}
+
+\begin{practice}{medium}{5}A host has address 172.20.45.200/20. Find the network address, broadcast address and the number of usable hosts.
+\sol
+\begin{working}
+\begin{align*}
+/20 &\Rightarrow 255.255.240.0 && \cmt{3rd octet is interesting}\\
+\text{block} &= 256-240 = 16 && \cmt{3rd octet: 0, 16, 32, 48 \dots}\\
+45 &\in [32, 47] \Rightarrow \text{network } \mathbf{172.20.32.0}\\
+\text{broadcast} &= 172.20.(48-1).255 = \mathbf{172.20.47.255}\\
+\text{hosts} &= 2^{12} - 2 = \mathbf{4094}
+\end{align*}
+\end{working}
+\end{practice}
+
+\begin{practice}{medium}{6}Explain three differences between the IPv4 and IPv6 headers.
+\sol (1) IPv4 is 20--60 bytes and variable; IPv6 is a fixed 40 bytes. (2) IPv4 has a header checksum; IPv6 has none (left to layers 2 and 4). (3) IPv4 routers can fragment (ID/flags/offset); in IPv6 only the source fragments, using an extension header. Also: TTL $\to$ Hop Limit, Protocol $\to$ Next Header, and IPv6 adds a Flow Label.
+\end{practice}
+
+\begin{practice}{hard}{12}You are given 192.168.10.0/24. Design a VLSM scheme for: Lab 100 hosts, Admin 50, Library 25, two point-to-point WAN links of 2 hosts each. Give network, mask, usable range and broadcast for each.
+\sol
+\begin{working}
+\begin{align*}
+100 &\to 2^{7}-2 = 126 \Rightarrow /25 && \cmt{largest first}\\
+50 &\to 2^{6}-2 = 62 \Rightarrow /26\\
+25 &\to 2^{5}-2 = 30 \Rightarrow /27\\
+2 &\to 2^{2}-2 = 2 \Rightarrow /30 && \cmt{the classic WAN-link mask}
+\end{align*}
+\end{working}
+\begin{center}\small
+\begin{tabular}{lllll}
+\toprule
+\textbf{Subnet} & \textbf{Network} & \textbf{Mask} & \textbf{Usable} & \textbf{Bcast}\\\midrule
+Lab & .0/25 & 255.255.255.128 & .1--.126 & .127\\
+Admin & .128/26 & 255.255.255.192 & .129--.190 & .191\\
+Library & .192/27 & 255.255.255.224 & .193--.222 & .223\\
+WAN 1 & .224/30 & 255.255.255.252 & .225--.226 & .227\\
+WAN 2 & .228/30 & 255.255.255.252 & .229--.230 & .231\\
+\bottomrule
+\end{tabular}
+\end{center}
+Free: 192.168.10.232--.255 for growth.
+\end{practice}
+
+\begin{practice}{hard}{10}A class B network 150.50.0.0 must be split into at least 500 subnets. Find the mask, the number of subnets, the hosts per subnet and the first two subnet ranges.
+\sol
+\begin{working}
+\begin{align*}
+2^{s} \ge 500 &\Rightarrow s = 9 \;(2^9 = 512) && \cmt{$2^8 = 256$ is too few}\\
+\text{prefix} &= 16 + 9 = /25 \Rightarrow 255.255.255.128\\
+h &= 32 - 25 = 7 \Rightarrow 2^{7}-2 = \mathbf{126} \text{ hosts}\\
+\text{block} &= 128 \text{ in the 4th octet} && \cmt{borrowed bits cross into octet 4}
+\end{align*}
+\end{working}
+Subnet 1: 150.50.0.0 -- hosts .0.1--.0.126 -- broadcast 150.50.0.127.\\
+Subnet 2: 150.50.0.128 -- hosts .0.129--.0.254 -- broadcast 150.50.0.255.
+\end{practice}
+
+%=====================================================================
+\newpage
+\begin{cheatsheet}
+\small
+\begin{tabularx}{\linewidth}{@{}XX@{}}
+\textbf{Formulas}
+\begin{itemize}
+\item Subnets $= 2^{s}$, hosts $= 2^{h}-2$
+\item Block $= 256 -$ mask octet
+\item Broadcast = next network $-1$
+\item /25 128 \ /26 64 \ /27 32 \ /28 16 \ /29 8 \ /30 4
+\item Hosts: /24 254, /25 126, /26 62, /27 30, /28 14, /29 6, /30 2
+\end{itemize}
+\textbf{Classes}
+\begin{itemize}
+\item A 1--126 /8, B 128--191 /16, C 192--223 /24
+\item Private: 10/8, 172.16--31, 192.168/16
+\item 127 = loopback
+\end{itemize}
+\textbf{VLSM}: biggest first, smallest block where $2^h - 2 \ge$ need, state assumptions.
+&
+\textbf{IPv4 header} (20--60 B): Version, IHL, DS, Total length, ID/Flags/Offset, \textbf{TTL}, \textbf{Protocol} (1 ICMP, 6 TCP, 17 UDP), Checksum, \textbf{Src}, \textbf{Dst}.
+
+\textbf{IPv6 header} (fixed 40 B): Version, Traffic class, Flow label, Payload length, Next header, Hop limit, Src (128), Dst (128).
+
+\textbf{IPv6 shorten}: drop leading zeros; \texttt{::} once, on the longest zero run.
+
+\textbf{SLAAC}: host builds address from RA prefix + own ID, stateless, M = 0.\\
+\textbf{DHCPv6}: server assigns and records, stateful, M = 1, Solicit/Advertise/Request/Reply.
+
+\textbf{DHCP DORA}: Discover, Offer, Request, Ack. UDP 67 server / 68 client. Renew 50\%.
+\end{tabularx}
+\end{cheatsheet}
+
+\end{document}

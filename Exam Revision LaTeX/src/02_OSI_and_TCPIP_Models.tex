@@ -1,0 +1,572 @@
+\documentclass[10pt]{article}
+\usepackage{dcn}
+% local helper: small grey figure caption
+\newcommand{\figcap}[1]{\\[1pt]{\scriptsize\color{midgrey}#1}}
+\begin{document}
+
+\packtitle{02}{Network Models: OSI \& TCP/IP}
+  {Course outline weeks 1--2 (OSI model \& services), 5--9 (internetworking, TCP/IP, session layer)}{VERY HIGH}
+
+The OSI model has been asked in \hl{all five} papers, usually for 9--17 marks, and it is often the first question on the paper.
+One table (layer, PDU, function, devices) and two diagrams (the stack and encapsulation) answer almost every version of it.
+
+\subsection*{How often this topic is examined}
+\begin{tabularx}{\linewidth}{@{}Xll@{}}
+\toprule
+\textbf{Question asked} & \textbf{Paper(s)} & \textbf{Marks}\\
+\midrule
+Labelled OSI diagram + function of each layer & SE2024 Q3b, ISA2024 Q3c & 9--15\\
+List the OSI layers from layer 7 in order & 2025 Q1a(i) & 9\\
+Purpose of the OSI model + functions of layers 3 and 4 & 2025 Q1a(ii) & 8\\
+OSI vs TCP/IP: differentiate / compare and contrast & 2018 Q5b, 2023 Q1c & 4--12\\
+Significance of TCP/IP and its implementation & SE2024 Q1e & 4\\
+IP vs MAC address, and which OSI layer each belongs to & 2025 Q5c & 6\\
+Internetworking principles; how TCP/IP and IP packets help & 2025 Q5a & 3\\
+Router vs switch: OSI layers and functions \textit{(answered in Pack 04)} & 2025 Q5d & 10\\
+\bottomrule
+\end{tabularx}
+
+\begin{examtip}
+Learn the stack figure in Section~\ref{sec:osi} by heart: number, name, PDU, one-line job, device.
+Whenever a question says ``OSI'', draw it first. The diagram alone earns a third of the marks and reminds you what to write.
+\end{examtip}
+
+%=====================================================================
+\section{Why networks are layered}
+
+The lecturer's \textbf{layered task} idea: sending data is one big job, so it is split into small, well-defined sub-tasks (layers).
+Each layer takes input from the layer above, does its job, and hands the result to the layer below (like a letter: writer $\to$ post office $\to$ carrier, then the reverse at the other city).
+
+\begin{itemize}
+\item \textbf{Protocol}: the rules two \emph{peer} layers (same layer, different machines) use to talk, e.g.\ HTTP between two application layers.
+\item \textbf{Service}: what a layer offers to the layer \emph{above} it on the same machine. \textbf{Interface}: how the layer above gets that service.
+\item \textbf{Connection-oriented} service (set up, transfer, release; like a phone call, e.g.\ TCP) vs \textbf{connectionless} (each message carries the full address; like a letter, e.g.\ IP, UDP).
+\item \textbf{Service primitives}: Request, Indication, Response, Confirm.
+\end{itemize}
+
+\begin{keydef}{Design issues every layer must solve (Tanenbaum)}
+\textbf{Addressing} (identify sender and receiver), \textbf{error control} (detect/correct, acknowledge), \textbf{flow control} (do not swamp a slow receiver),
+\textbf{segmentation \& reassembly} (break long messages up), \textbf{multiplexing} (share one connection among several conversations) and \textbf{routing} (choose a path when there are several).
+\end{keydef}
+
+\begin{itemize}
+\item \textbf{Benefits of layering}: modular (change one layer without touching others, e.g.\ copper to fibre); standard interfaces allow multi-vendor equipment; easier to design, teach and troubleshoot.
+\item \textbf{Cost}: extra headers (overhead) and some duplicated functions (error control at layers 2 and 4).
+\end{itemize}
+
+%=====================================================================
+\newpage
+\section{The OSI reference model}\label{sec:osi}
+
+The \textbf{Open Systems Interconnection (OSI)} model was developed by \textbf{ISO} (International Organization for Standardization) in 1984.
+It is a 7-layer \emph{reference} model that lets systems on different platforms (hardware, software, OS) communicate.
+``ISO is the organisation, OSI is the model.''
+
+\begin{center}
+\begin{tikzpicture}[x=1mm,y=1mm]
+  % header row
+  \foreach \x/\t in {20/Layer,65/Main job (lecturer's words),104.5/PDU,127.5/Devices}
+    \node[font=\scriptsize\bfseries,color=brand] at (\x,66) {\t};
+  % rows: y = (n-1)*9
+  \foreach \n/\name/\fn/\pdu/\dev/\col in {
+    7/Application/{Gives users access to network resources: web, email, file transfer, DNS (HTTP, FTP, SMTP, DNS)}/Data/{Hosts, gateway}/brand!45,
+    6/Presentation/{Translation (ASCII/EBCDIC), encryption, compression (TLS, JPEG, MPEG)}/Data/{Hosts, gateway}/brand!45,
+    5/Session/{Dialog control: establish, manage, end sessions; synchronisation checkpoints (RPC, NetBIOS)}/Data/{Hosts, gateway}/brand!45,
+    4/Transport/{Process-to-process delivery: ports, segmentation, end-to-end flow \& error control (TCP, UDP)}/Segment/{Firewall, L4 switch}/peach,
+    3/Network/{Source-to-destination delivery: logical (IP) addressing and routing (IP, ICMP, OSPF)}/Packet/{Router, L3 switch}/easyc!45,
+    2/Data Link/{Hop-to-hop delivery: framing, MAC addressing, error \& flow control, access control}/Frame/{Switch, bridge, NIC}/easyc!45,
+    1/Physical/{Bits over the medium: connectors, signals, data rate, bit sync, topology, mode}/Bits/{Hub, repeater, cable, modem}/easyc!45}{
+    \pgfmathsetmacro{\yy}{(\n-1)*9}
+    \node[draw=ink,fill=\col,minimum width=26mm,minimum height=8mm,font=\small\bfseries,anchor=west]
+       at (7,\yy) {\n\ \name};
+    \node[draw=midgrey,fill=white,text width=58mm,minimum height=8mm,font=\scriptsize,anchor=west,align=left,inner sep=1.5pt]
+       at (35,\yy) {\fn};
+    \node[draw=midgrey,fill=cream,minimum width=15mm,minimum height=8mm,font=\scriptsize\bfseries,anchor=west]
+       at (97,\yy) {\pdu};
+    \node[draw=midgrey,fill=white,text width=24mm,minimum height=8mm,font=\scriptsize,anchor=west,align=center,inner sep=1.5pt]
+       at (114,\yy) {\dev};
+  }
+  \draw[decorate,decoration={brace,amplitude=4pt},thick,brand] (5.5,32) -- (5.5,58);
+  \node[rotate=90,font=\tiny\bfseries,color=brand] at (1.5,45) {USER SUPPORT};
+  \draw[decorate,decoration={brace,amplitude=4pt},thick,ink] (5.5,-4) -- (5.5,22);
+  \node[rotate=90,font=\tiny\bfseries,color=ink] at (1.5,9) {NETWORK SUPPORT};
+\end{tikzpicture}
+\figcap{Figure 1: the OSI model. Layers 7--5 = software in the hosts; layer 4 links the two halves; layers 3--1 move data through the network.}
+\end{center}
+
+\begin{mnemonic}
+Top-down (7$\to$1): \textbf{A}ll \textbf{P}eople \textbf{S}eem \textbf{T}o \textbf{N}eed \textbf{D}ata \textbf{P}rocessing.\quad
+Bottom-up (1$\to$7): \textbf{P}lease \textbf{D}o \textbf{N}ot \textbf{T}hrow \textbf{S}ausage \textbf{P}izza \textbf{A}way.\\
+PDUs bottom-up: \textbf{B}ig \textbf{F}at \textbf{P}ackets \textbf{S}ometimes \textbf{D}rop: Bits, Frames, Packets, Segments, Data.
+\end{mnemonic}
+\sidenote{The lecturer's notes list the layers top to bottom as 1 = Application \dots 7 = Physical. In the \textbf{exam} use the standard numbering: Physical = 1, Application = 7.}
+
+\begin{pastq}{2025 Q1a(i)}{9}The OSI reference model is a fundamental concept in networking. List the layers of the OSI model starting from layer 7 in the correct order.\end{pastq}
+\begin{ans}
+Nine marks for a list, so give the order \textbf{and} one line each:
+\begin{enumerate}
+\item[\textbf{L7}] \textbf{Application}: gives users and programs access to network services (HTTP, FTP, SMTP, DNS).
+\item[\textbf{L6}] \textbf{Presentation}: translation of data formats, encryption, compression.
+\item[\textbf{L5}] \textbf{Session}: establishes, manages and terminates sessions; dialog control and synchronisation.
+\item[\textbf{L4}] \textbf{Transport}: process-to-process delivery using ports; segmentation, flow and error control (TCP/UDP).
+\item[\textbf{L3}] \textbf{Network}: source-to-destination delivery of packets; IP addressing and routing.
+\item[\textbf{L2}] \textbf{Data Link}: hop-to-hop delivery of frames; MAC addressing, framing, error detection.
+\item[\textbf{L1}] \textbf{Physical}: transmits raw bits as signals over the medium.
+\end{enumerate}
+\end{ans}
+
+\begin{pastq}{2025 Q1a(ii)}{8}Describe the main purpose of this model and discuss the function of the Layer 3 and Layer 4.\end{pastq}
+\begin{ans}
+\textbf{Purpose of the OSI model}
+\begin{itemize}
+\item A \textbf{standard reference} so equipment and software from different vendors and platforms can interoperate (``open systems'').
+\item \textbf{Divides} the complex communication task into 7 manageable layers, each with a defined job that serves the layer above.
+\item \textbf{Modularity}: a change in one layer (e.g.\ new cabling) does not affect the others.
+\item A common language for \textbf{teaching and troubleshooting} (``is this a Layer 1 cable fault or a Layer 3 IP fault?'').
+\end{itemize}
+\textbf{Layer 3, Network}: \textbf{source-to-destination (host-to-host)} delivery of \textbf{packets} across several networks.
+\begin{itemize}
+\item \textbf{Logical addressing}: adds source and destination IP addresses so hosts on other networks can be found.
+\item \textbf{Routing}: routers choose the best path using routing tables and protocols (RIP, OSPF); also fragmentation and error reporting (ICMP). Device: router.
+\end{itemize}
+\textbf{Layer 4, Transport}: \textbf{process-to-process (end-to-end)} delivery of the whole message.
+\begin{itemize}
+\item \textbf{Port addressing} (HTTP 80, HTTPS 443) delivers data to the right application; \textbf{segmentation and reassembly} with sequence numbers.
+\item \textbf{Connection control} (TCP connection-oriented, UDP connectionless), plus end-to-end \textbf{flow control} and \textbf{error control} with retransmission.
+\end{itemize}
+\end{ans}
+
+\begin{pastq}{SE2024 Q3b \textnormal{/} ISA2024 Q3c}{9--15}With the aid of a well labelled diagram of the OSI model, describe the functions provided by each layer. / With the aid of a clearly labelled diagram, define the OSI model and explain its layers.\end{pastq}
+\begin{ans}
+\textbf{Definition}: the OSI model is a 7-layer reference model developed by ISO that describes how data moves from an application on one computer, through a network, to an application on another. Each layer performs a set of functions, uses the services of the layer below and offers services to the layer above. \textbf{Diagram}: draw Figure~1 (stack + PDU) or Figure~3 (two hosts and a router).
+
+\small
+\begin{tabularx}{\linewidth}{@{}>{\bfseries\raggedright\arraybackslash}p{1.9cm}X@{}}
+\toprule
+Layer & Functions\\\midrule
+7 Application & Interface between the user and the network; services such as file transfer (FTP/FTAM), email (SMTP/X.400), web (HTTP), directory services (DNS/X.500), remote login.\\
+6 Presentation & \textbf{Translation} between different data formats/platforms (ASCII, EBCDIC); \textbf{encryption}/decryption for privacy; \textbf{compression} for faster transfer.\\
+5 Session & Network \textbf{dialog controller}: establishes, maintains and terminates sessions; half/full-duplex dialog control; \textbf{synchronisation} checkpoints so a failed transfer resumes from the last checkpoint.\\
+4 Transport & \textbf{Process-to-process} delivery using \textbf{port} (service-point) addresses; segmentation and reassembly with sequence numbers; connection control; end-to-end flow and error control (TCP, UDP).\\
+3 Network & \textbf{Source-to-destination} delivery of packets across many networks; \textbf{logical (IP) addressing}; \textbf{routing} (best path); fragmentation (IP, ICMP; router).\\
+2 Data Link & \textbf{Hop-to-hop} delivery; \textbf{framing}; \textbf{physical (MAC) addressing}; error control (CRC in the trailer); flow control; access control (CSMA/CD); sub-layers LLC + MAC (switch, bridge, NIC).\\
+1 Physical & Transmits \textbf{raw bits} as signals; mechanical/electrical spec of interfaces and media; representation (encoding) of bits; data rate; bit synchronisation; line configuration; physical topology; transmission mode (hub, repeater, cables).\\
+\bottomrule
+\end{tabularx}
+\normalsize
+For 15 marks add: data is \textbf{encapsulated} going down (each layer adds a header; layer 2 adds a trailer) and \textbf{decapsulated} going up (Section~\ref{sec:encap}).
+\end{ans}
+\sidenote{9 marks = 7 layers + diagram. 15 marks = definition (2) + diagram (3--4) + about 1.5 marks per layer, so give \textbf{two} functions per layer.}
+
+\begin{trap}
+\begin{itemize}
+\item Putting \textbf{encryption} at the Session layer or \textbf{routing} at the Data Link layer. Encryption/compression/translation = 6; routing = 3.
+\item Calling the layer-4 PDU a ``packet''. It is a \textbf{segment} (TCP) or \textbf{datagram} (UDP); \textbf{packet} belongs to layer 3.
+\item Saying a \textbf{switch} is layer 3 or a \textbf{hub} is layer 2. Hub = 1, switch/bridge = 2, router = 3.
+\end{itemize}
+\end{trap}
+
+%=====================================================================
+\section{Encapsulation and peer-to-peer communication}\label{sec:encap}
+
+\begin{itemize}
+\item \textbf{Encapsulation} (sender, going \emph{down}): each layer takes the PDU from the layer above as its data and adds its own \textbf{header}. Layer 2 also adds a \textbf{trailer} (FCS/CRC). Layer 1 turns the frame into bits.
+\item \textbf{Decapsulation} (receiver, going \emph{up}): each layer reads and removes the header added by its \textbf{peer} layer, then passes the rest up.
+\item \textbf{Peer-to-peer process}: layer $n$ on host A logically talks to layer $n$ on host B through its header, but physically the data only travels down A, across the medium and up B.
+\end{itemize}
+
+\begin{center}
+\begin{tikzpicture}[x=1mm,y=1mm]
+  \tikzset{cell/.style={draw=ink,minimum height=6.5mm,font=\scriptsize,anchor=west,inner sep=0pt}}
+  % rows y: 40, 30, 20, 10, 0
+  \foreach \y/\l in {40/{L7--L5 Application},30/{L4 Transport},20/{L3 Network},10/{L2 Data Link},0/{L1 Physical}}
+    \node[font=\scriptsize\bfseries,anchor=west] at (0,\y) {\l};
+  \foreach \y/\p in {40/Data,30/Segment,20/Packet,10/Frame,0/Bits}
+    \node[font=\scriptsize\bfseries,color=brand,anchor=west] at (122,\y) {\p};
+  % data row
+  \node[cell,fill=cream,minimum width=40mm] at (68,40) {DATA};
+  % segment
+  \node[cell,fill=peach,minimum width=14mm] at (54,30) {TCP hdr};
+  \node[cell,fill=cream,minimum width=40mm] at (68,30) {DATA};
+  % packet
+  \node[cell,fill=easyc!60,minimum width=14mm] at (40,20) {IP hdr};
+  \node[cell,fill=peach,minimum width=14mm] at (54,20) {TCP hdr};
+  \node[cell,fill=cream,minimum width=40mm] at (68,20) {DATA};
+  % frame
+  \node[cell,fill=brand!70,text=white,minimum width=14mm] at (26,10) {MAC hdr};
+  \node[cell,fill=easyc!60,minimum width=14mm] at (40,10) {IP hdr};
+  \node[cell,fill=peach,minimum width=14mm] at (54,10) {TCP hdr};
+  \node[cell,fill=cream,minimum width=40mm] at (68,10) {DATA};
+  \node[cell,fill=brand!70,text=white,minimum width=11mm] at (108,10) {FCS};
+  % bits
+  \node[cell,fill=white,minimum width=93mm,font=\scriptsize\ttfamily] at (26,0) {0110100111010110010111001011010011101001011100};
+  % guides
+  \draw[midgrey,dashed] (68,36.5) -- (68,13.5); \draw[midgrey,dashed] (108,36.5) -- (108,13.5);
+  \draw[midgrey,dashed] (54,26.5) -- (54,13.5); \draw[midgrey,dashed] (40,16.5) -- (40,13.5);
+  % arrows
+  \draw[->,very thick,brand] (23,44) -- (23,-2) node[pos=0.02,left,font=\tiny,color=brand]{};
+  \draw[->,very thick,ink] (120,-2) -- (120,44);
+  \node[font=\tiny\bfseries,color=brand,anchor=south west] at (22,45) {SENDER: encapsulate, headers added going down};
+  \node[font=\tiny\bfseries,color=ink,anchor=south east] at (121,45) {RECEIVER: decapsulate going up};
+  \draw[decorate,decoration={brace,mirror,amplitude=3pt}] (108,6.2) -- (119,6.2) node[midway,below=3pt,font=\tiny]{trailer};
+\end{tikzpicture}
+\figcap{Figure 2: encapsulation. Each layer's PDU becomes the data of the layer below. Only layer 2 adds a trailer (FCS = CRC for error detection).}
+\end{center}
+
+\begin{center}
+\begin{tikzpicture}[x=1mm,y=1mm]
+  \tikzset{ly/.style={draw=ink,minimum width=25mm,minimum height=5.6mm,font=\scriptsize,inner sep=0pt}}
+  % data path on background
+  \begin{scope}[on background layer]
+    \draw[brand,line width=1.6pt,->] (14,44) -- (14,-6) -- (66,-6) -- (66,16);
+    \draw[brand,line width=1.6pt,->] (74,16) -- (74,-6) -- (126,-6) -- (126,44);
+  \end{scope}
+  \foreach \n/\nm/\c in {7/Application/brand!35,6/Presentation/brand!35,5/Session/brand!35,4/Transport/peach,3/Network/easyc!45,2/Data Link/easyc!45,1/Physical/easyc!45}{
+    \pgfmathsetmacro{\yy}{(\n-1)*7}
+    \node[ly,fill=\c] (A\n) at (14,\yy) {\n\ \nm};
+    \node[ly,fill=\c] (B\n) at (126,\yy) {\n\ \nm};
+  }
+  \foreach \n/\nm in {3/Network,2/Data Link,1/Physical}{
+    \pgfmathsetmacro{\yy}{(\n-1)*7}
+    \node[ly,fill=softpeach] (R\n) at (70,\yy) {\n\ \nm};
+  }
+  \node[font=\small\bfseries] at (14,48) {Host A (sender)};
+  \node[font=\small\bfseries] at (126,48) {Host B (receiver)};
+  \node[font=\tiny\bfseries,color=ink] at (70,18.6) {ROUTER (layers 1--3 only)};
+  % peer arrows upper layers
+  \foreach \n/\t in {7/{HTTP: data},6/{presentation header},5/{session header},4/{TCP segments: process-to-process (ports)}}{
+    \pgfmathsetmacro{\yy}{(\n-1)*7}
+    \draw[<->,dashed,ink] (27,\yy) -- (113,\yy) node[pos=0.27,fill=white,inner sep=1pt,font=\tiny]{\t};
+  }
+  \foreach \n/\t in {3/{packets (IP)},2/{frames (MAC)},1/{bits}}{
+    \pgfmathsetmacro{\yy}{(\n-1)*7}
+    \draw[<->,dashed,ink] (27,\yy) -- (57,\yy) node[midway,fill=white,inner sep=1pt,font=\tiny]{\t};
+    \draw[<->,dashed,ink] (83,\yy) -- (113,\yy) node[midway,fill=white,inner sep=1pt,font=\tiny]{\t};
+  }
+  \node[font=\tiny,fill=white,inner sep=1pt] at (40,-6) {medium (cable / radio)};
+  \node[font=\tiny,fill=white,inner sep=1pt] at (100,-6) {medium};
+  % delivery braces
+  \draw[decorate,decoration={brace,mirror,amplitude=3pt},hardc] (2,-9) -- (68,-9) node[midway,below=3pt,font=\tiny,color=hardc]{hop 1: L2 hop-to-hop (MAC A $\to$ router)};
+  \draw[decorate,decoration={brace,mirror,amplitude=3pt},hardc] (72,-9) -- (138,-9) node[midway,below=3pt,font=\tiny,color=hardc]{hop 2: L2 hop-to-hop (router $\to$ MAC B)};
+\end{tikzpicture}
+\figcap{Figure 3: peer-to-peer layer communication through a router. Dashed = logical peer conversation; orange = the real path of the data.\\
+Layer 3 is host-to-host (IP A $\to$ IP B, unchanged); layer 4 is process-to-process (port to port).}
+\end{center}
+
+\sidenote{A router \textbf{decapsulates up to layer 3} to read the destination IP, then \textbf{re-encapsulates} in a new frame for the next link. Layers 4--7 are never opened by a router.}
+
+\subsection{Three kinds of delivery}
+{\footnotesize\renewcommand{\arraystretch}{1.1}
+\begin{tabularx}{\linewidth}{@{}>{\raggedright\arraybackslash}p{3.9cm}p{1.7cm}>{\raggedright\arraybackslash}p{3.3cm}X@{}}
+\toprule
+\textbf{Delivery} & \textbf{Layer} & \textbf{Address used} & \textbf{Example}\\\midrule
+Hop-to-hop (node-to-node) & 2 Data Link & Physical / MAC (48 bit) & PC $\to$ its gateway router\\
+Host-to-host (source-to-destination) & 3 Network & Logical / IP (32 or 128 bit) & PC in Harare $\to$ server in London\\
+Process-to-process (end-to-end) & 4 Transport & Port (16 bit) & browser $\to$ web server process on port 443\\
+\bottomrule
+\end{tabularx}}
+
+The lecturer's TCP/IP addressing has four levels: \textbf{physical} (L2), \textbf{logical} (L3), \textbf{port} (L4) and \textbf{specific} (application, e.g.\ an email address or URL).
+
+%=====================================================================
+\section{IP addresses vs MAC addresses}
+
+\begin{center}
+\begin{tikzpicture}[x=1mm,y=1mm]
+  \node[hostn,fill=peach] (A) at (6,0) {Host A};
+  \node[routern] (R1) at (50,0) {R1};
+  \node[routern] (R2) at (92,0) {R2};
+  \node[hostn,fill=peach] (B) at (134,0) {Host B};
+  \draw[link] (A) -- node[above,lbl]{LAN 1 (Ethernet)} (R1);
+  \draw[link] (R1) -- node[above,lbl]{WAN link} (R2);
+  \draw[link] (R2) -- node[above,lbl]{LAN 2 (Ethernet)} (B);
+  \foreach \x/\m in {28/{MAC: A $\to$ R1},71/{L2: R1 $\to$ R2},113/{MAC: R2 $\to$ B}}{
+    \node[hdr,fill=brand!70,text=white,minimum width=34mm,minimum height=5.5mm] at (\x,-9) {\m};
+    \node[hdr,fill=easyc!50,minimum width=34mm,minimum height=5.5mm] at (\x,-14.5) {IP: A $\to$ B};
+    \node[hdr,fill=cream,minimum width=34mm,minimum height=5.5mm] at (\x,-20) {TCP + data};
+  }
+  \node[note,anchor=west] at (0,-27) {Frame header (orange) is rebuilt at every router: changes each hop.\quad IP header (yellow) stays the same end to end.};
+\end{tikzpicture}
+\figcap{Figure 4: as a packet crosses an internetwork, the MAC addresses change hop by hop but the IP addresses do not.}
+\end{center}
+
+\begin{pastq}{2025 Q5c}{6}Explain the difference between IP addresses and MAC addresses. Which OSI layers does each address belong to?\end{pastq}
+\begin{ans}
+\small
+\begin{tabularx}{\linewidth}{@{}>{\bfseries\raggedright\arraybackslash}p{2.3cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
+\toprule
+Point & IP address & MAC address\\\midrule
+OSI layer & \textbf{Layer 3, Network} & \textbf{Layer 2, Data Link} (MAC sub-layer)\\
+Type & Logical address, set in software & Physical / hardware address burned into the NIC\\
+Size \& format & IPv4 32 bits (192.168.1.10); IPv6 128 bits & 48 bits, 12 hex digits (00:1A:2B:3C:4D:5E); first 24 bits = OUI (vendor)\\
+Assigned by & Network admin, DHCP or ISP; changes when you move networks & Manufacturer; normally permanent\\
+Purpose & Identifies the host \textbf{and its network}; used by routers for source-to-destination delivery & Identifies the NIC on the \textbf{local} link; used by switches for hop-to-hop delivery\\
+On the journey & Stays the same end to end & Rewritten at every router hop\\
+\bottomrule
+\end{tabularx}
+\normalsize
+\textbf{ARP} links the two: it finds the MAC address that belongs to a known IP address on the local network.
+\end{ans}
+
+%=====================================================================
+\section{The session layer: design issues}
+
+Outline weeks 8--9 cover the session layer and RPC. Not yet examined on its own, so it is a likely ``new'' question.
+
+\begin{itemize}
+\item \textbf{Dialog control}: decides whose turn it is to send. Dialogs may be simplex, half-duplex or full-duplex.
+\item \textbf{Token management}: in a half-duplex dialog only the side holding the \textbf{token} may send, so both sides never try the same critical operation at once.
+\item \textbf{Synchronisation}: inserts \textbf{checkpoints (sync points)} into a long transfer. After a crash only the data after the last checkpoint is resent.
+\item \textbf{Session establishment, maintenance and release} (open, keep alive, close in an orderly way), and \textbf{activity management} (group work into units).
+\item \textbf{Remote Procedure Call (RPC)}: lets a program call a procedure on another machine as if it were local. A client \textbf{stub} packs (marshals) the parameters, sends them, and the server stub unpacks them and returns the result.
+\end{itemize}
+
+\begin{center}
+\begin{tikzpicture}[x=1mm,y=1mm]
+  \draw[fill=easyc!45,draw=ink] (0,0) rectangle (50,6);
+  \draw[fill=easyc!45,draw=ink] (50,0) rectangle (100,6);
+  \draw[fill=hardc!25,draw=ink] (100,0) rectangle (130,6);
+  \node[font=\scriptsize] at (25,3) {pages 1--500 (acknowledged)};
+  \node[font=\scriptsize] at (75,3) {pages 501--1000 (acknowledged)};
+  \node[font=\scriptsize] at (115,3) {1001--1150};
+  \foreach \x/\t in {50/sync point 1,100/sync point 2}{
+    \draw[very thick,brand] (\x,-2) -- (\x,8);
+    \node[font=\tiny\bfseries,color=brand] at (\x,10) {\t};
+  }
+  \node[font=\scriptsize\bfseries,color=hardc] at (130,9.5) {crash};
+  \draw[->,thick,hardc] (130,8) -- (130,6.5);
+  \draw[->,thick,ink] (130,-4) -- (100,-4) node[midway,below,font=\tiny]{resend only from page 1001};
+\end{tikzpicture}
+\figcap{Figure 5: session-layer synchronisation. Without checkpoints all 1150 pages would be resent.}
+\end{center}
+
+\begin{mnemonic}
+Session layer = \textbf{D-T-S}: \textbf{D}ialog control, \textbf{T}oken management, \textbf{S}ynchronisation. (``Don't Talk, Sync.'')
+\end{mnemonic}
+
+%=====================================================================
+\section{The TCP/IP model and internetworking}
+
+The \textbf{TCP/IP protocol suite} was developed by the US Department of Defense (ARPANET/DARPA) and is the protocol suite of the Internet.
+It \textbf{existed before} the OSI model, so its layers do not match OSI exactly. The lecturer's 4 layers (bottom-up):
+
+\begin{itemize}
+\item \textbf{Host-to-Network (Network Access)}: the protocols of the physical and data link layers (Ethernet, Wi-Fi, PPP). Physical addresses.
+\item \textbf{Internet (Network/IP) layer}: IP, a \textbf{connectionless, unreliable, best-effort} protocol, plus \textbf{ARP, RARP, ICMP, IGMP}. Logical addresses.
+\item \textbf{Transport}: \textbf{TCP} (reliable, connection-oriented), \textbf{UDP} (connectionless, unreliable, fast), \textbf{SCTP} (combines both; VoIP). Port addresses.
+\item \textbf{Application}: OSI layers 5--7 merged: HTTP, FTP, SMTP, TELNET, DNS, DHCP, SNMP.
+\end{itemize}
+
+\begin{pastq}{SE2024 Q1e}{4}Discuss the significance of TCP/IP and its implementation in data networks.\end{pastq}
+\begin{ans}
+\textbf{Significance}
+\begin{itemize}
+\item It is the \textbf{protocol suite of the Internet}: an open, vendor-neutral standard, so any device and OS running TCP/IP can communicate with any other (interoperability).
+\item \textbf{Scalable and routable}: IP addressing and routing let millions of different networks join into one internetwork.
+\item Offers both \textbf{reliable} delivery (TCP: ACKs, retransmission, ordering) and \textbf{fast} delivery (UDP) for real-time traffic.
+\end{itemize}
+\textbf{Implementation}: built into every operating system's network stack. Each host is configured with an IP address, subnet mask, default gateway and DNS server (manually or by DHCP), and applications communicate through \textbf{sockets} (IP address + port), e.g.\ a browser to a web server on port 443.
+\end{ans}
+
+\begin{pastq}{2025 Q5a}{3}Describe the core principles of internetworking and expand on how TCP/IP and IP packets facilitate this process.\end{pastq}
+\begin{ans}
+\textbf{Internetworking} = joining separate and different networks (Ethernet LANs, Wi-Fi, WAN links) with \textbf{routers} so they behave as one large network (the Internet = a network of networks).
+\begin{itemize}
+\item \textbf{Universal addressing}: every host gets a unique IP address, independent of its LAN hardware.
+\item \textbf{One common packet format}: every network carries the same IP packet, hiding hardware differences. The packet is encapsulated in whatever frame each link uses, and fragmented to fit each link's MTU.
+\item \textbf{Routing}: routers forward each packet hop by hop as an independent, connectionless, best-effort datagram; \textbf{TCP} above IP restores reliable, ordered end-to-end delivery.
+\end{itemize}
+\end{ans}
+\sidenote{Only 3 marks: one line per principle. Do not write a page.}
+
+%=====================================================================
+\section{OSI vs TCP/IP}
+
+\begin{center}
+\begin{tikzpicture}[x=1mm,y=1mm]
+  \foreach \x/\t in {18/{OSI model (7 layers)},68/{TCP/IP model (4 layers)},117/{Main protocols}}
+    \node[font=\scriptsize\bfseries,color=brand] at (\x,52) {\t};
+  \foreach \n/\nm in {7/Application,6/Presentation,5/Session,4/Transport,3/Network,2/Data Link,1/Physical}{
+    \pgfmathsetmacro{\yy}{(\n-1)*7}
+    \node[draw=ink,fill=cream,minimum width=34mm,minimum height=6mm,font=\scriptsize,inner sep=0pt] (O\n) at (18,\yy) {\n\ \nm};
+  }
+  % tcp/ip blocks: x from 52 to 84
+  \draw[fill=brand!45,draw=ink] (52,25) rectangle (84,45) node[midway,font=\scriptsize\bfseries]{Application};
+  \draw[fill=peach,draw=ink] (52,18) rectangle (84,24) node[midway,font=\scriptsize\bfseries]{Transport};
+  \draw[fill=easyc!60,draw=ink] (52,11) rectangle (84,17) node[midway,font=\scriptsize\bfseries]{Internet (IP)};
+  \draw[fill=midgrey!40,draw=ink] (52,-3) rectangle (84,10) node[midway,font=\scriptsize\bfseries,align=center]{Network Access\\(Host-to-Network)};
+  % mapping lines
+  \foreach \ya/\yb in {45/45,25/25,24/24,18/18,17/17,11/11,10/10,-3/-3}
+    \draw[midgrey,dashed] (35,\ya) -- (52,\yb);
+  % protocols
+  \node[font=\scriptsize,text width=50mm,align=left] at (117,35) {HTTP, HTTPS, FTP, SMTP, POP3, TELNET, SSH, DNS, DHCP, SNMP};
+  \node[font=\scriptsize,text width=50mm,align=left] at (117,21) {TCP, UDP, SCTP};
+  \node[font=\scriptsize,text width=50mm,align=left] at (117,14) {IP (v4/v6), ICMP, ARP, RARP, IGMP};
+  \node[font=\scriptsize,text width=50mm,align=left] at (117,3.5) {Ethernet, Wi-Fi (802.11), PPP, DSL, Frame Relay};
+\end{tikzpicture}
+\figcap{Figure 6: OSI layers mapped to the TCP/IP model. Some books show TCP/IP with 5 layers (Network Access split into Data Link + Physical).}
+\end{center}
+
+\begin{pastq}{2018 Q5b \textnormal{/} 2023 Q1c}{4--12}Differentiate between the OSI model and the TCP/IP protocol suite. / Compare and contrast the key differences between the OSI Layer model and the TCP/IP Reference model.\end{pastq}
+\begin{ans}
+\small
+\begin{tabularx}{\linewidth}{@{}>{\bfseries\raggedright\arraybackslash}p{2.3cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X@{}}
+\toprule
+Point & OSI model & TCP/IP model\\\midrule
+Developed by & ISO & US DoD (DARPA), now IETF\\
+Layers & 7 & 4 (sometimes shown as 5)\\
+Nature & Theoretical \textbf{reference} model, protocol-independent & \textbf{Practical} model; describes protocols actually in use\\
+Approach & Model designed first, protocols later & Protocols came first, model fitted to them\\
+Session \& presentation & Separate layers & Merged into the Application layer\\
+Physical \& data link & Two separate layers & One Network Access (Host-to-Network) layer\\
+Network layer & Connection-oriented and connectionless & Connectionless only (IP)\\
+Transport layer & Connection-oriented emphasis & Both: TCP (connection-oriented) and UDP (connectionless)\\
+Service / interface / protocol & Clearly separated; protocols easy to replace & Not clearly separated; protocols hard to replace\\
+Use & Teaching, design, troubleshooting & Runs the real Internet\\
+\bottomrule
+\end{tabularx}
+\normalsize
+\textbf{Similarities} (for ``compare''): both are layered; both have application, transport and network functions; both use encapsulation and packet switching; in both the transport layer gives end-to-end delivery.
+\end{ans}
+\sidenote{2023 (4 marks): 4 rows of the table. 2018 (12 marks): about 6 rows (1 mark per side) + Figure 6 + one line of similarities.}
+
+\begin{examtip}
+``Differentiate'' and ``compare'' questions: always answer in a \textbf{table} with a ``Point'' column. Examiners tick rows quickly, and a table makes it obvious you gave both sides.
+\end{examtip}
+
+%=====================================================================
+\section{Practice questions}
+\setcounter{pq}{0}
+
+\begin{practice}{easy}{4}Name the PDU at each of layers 4, 3, 2 and 1 of the OSI model.
+\sol Layer 4 segment (TCP) or datagram (UDP); layer 3 packet; layer 2 frame; layer 1 bits.
+\end{practice}
+
+\begin{practice}{easy}{4}At which OSI layer does each happen? (a) encryption (b) routing (c) framing (d) port numbers.
+\sol (a) 6 Presentation \ (b) 3 Network \ (c) 2 Data Link \ (d) 4 Transport.
+\end{practice}
+
+\begin{practice}{easy}{4}List the four layers of the TCP/IP model and give one protocol for each.
+\sol Application: HTTP; Transport: TCP; Internet: IP; Network Access (Host-to-Network): Ethernet.
+\end{practice}
+
+\begin{practice}{easy}{3}Define encapsulation and state which layer adds a trailer.
+\sol Encapsulation is the process where each layer, going down the stack, takes the PDU from the layer above as its data and adds its own header (control information). The \textbf{Data Link} layer also adds a trailer, the FCS (CRC) used for error detection.
+\end{practice}
+
+\begin{practice}{medium}{6}Explain three design issues of the session layer, using an example for each.
+\sol
+\begin{enumerate}
+\item \textbf{Dialog control}: manages whose turn it is to talk, half- or full-duplex. Example: a client-server database session where queries and replies alternate.
+\item \textbf{Token management}: only the holder of the token may perform a critical operation. Example: in a half-duplex dialog only the token holder transmits, so both sides never commit the same transaction at once.
+\item \textbf{Synchronisation}: checkpoints are inserted in a long transfer. Example: a 1000-page file with a checkpoint every 100 pages; after a crash at page 650 only pages 601 onwards are resent.
+\end{enumerate}
+\end{practice}
+
+\begin{practice}{medium}{6}Distinguish between hop-to-hop, host-to-host and process-to-process delivery. For each, name the OSI layer and the address it uses.
+\sol
+\textbf{Hop-to-hop}: Data Link (L2), MAC address. Delivers a frame from one node to the \emph{next} node on the same link, e.g.\ PC to its router.\\
+\textbf{Host-to-host (source-to-destination)}: Network (L3), IP address. Delivers a packet from the original source host to the final destination host across many networks.\\
+\textbf{Process-to-process}: Transport (L4), port number. Delivers the message to the correct application process, e.g.\ to the web server on port 80, not the mail server on port 25.
+\end{practice}
+
+\begin{practice}{medium}{6}Host A (192.168.1.10) sends a packet to Host B (10.0.0.5) through one router. Describe what happens to the source and destination MAC and IP addresses on each link, and which layers the router processes.
+\sol
+\begin{itemize}
+\item Link 1: source MAC = A, destination MAC = router's LAN-1 interface (found by ARP for the default gateway); IP 192.168.1.10 $\to$ 10.0.0.5.
+\item The router processes layers \textbf{1--3}: it removes the frame, reads the destination IP, looks up its routing table, decrements TTL and builds a \textbf{new frame}.
+\item Link 2: source MAC = router's LAN-2 interface, destination MAC = B; the IP addresses are \textbf{unchanged}.
+\end{itemize}
+So MAC addresses change every hop (hop-to-hop) while IP addresses stay the same end to end (host-to-host).
+\end{practice}
+
+\begin{practice}{medium}{5}An application sends 1460 bytes of data using TCP over IPv4 and Ethernet. TCP and IP headers are 20 bytes each; Ethernet adds a 14-byte header and a 4-byte FCS. Find the frame size and the percentage of the frame that is overhead.
+\sol
+\begin{working}
+\begin{align*}
+\text{segment} &= 1460 + 20 = 1480 \text{ bytes} && \cmt{L4 adds the TCP header}\\
+\text{packet} &= 1480 + 20 = 1500 \text{ bytes} && \cmt{L3 adds IP; 1500 = Ethernet MTU}\\
+\text{frame} &= 1500 + 14 + 4 = \mathbf{1518} \text{ bytes} && \cmt{L2 adds header \textbf{and} trailer}\\
+\text{overhead} &= 1518 - 1460 = 58 \text{ bytes}\\
+\frac{58}{1518}\times 100 &\approx \mathbf{3.8\%} && \cmt{efficiency $\approx$ 96.2\%}
+\end{align*}
+\end{working}
+\end{practice}
+
+\begin{practice}{hard}{12}With the aid of a diagram, explain how a request typed into a web browser is encapsulated, carried through one router and decapsulated at the web server. Refer to every OSI layer.
+\sol
+\textbf{Diagram}: Figure 3 (two 7-layer stacks, a 3-layer router, peer arrows) and Figure 2 (headers).
+\begin{enumerate}
+\item \textbf{L7}: the browser creates an HTTP GET request (the data).
+\item \textbf{L6}: the data is formatted (e.g.\ UTF-8) and encrypted with TLS for HTTPS.
+\item \textbf{L5}: a session is opened and kept between browser and server.
+\item \textbf{L4}: TCP sets up a connection (3-way handshake), adds a header with source port (e.g.\ 50000) and destination port 443, sequence number and checksum: a \textbf{segment}.
+\item \textbf{L3}: IP adds source and destination IP addresses and TTL: a \textbf{packet}.
+\item \textbf{L2}: Ethernet adds source MAC (PC) and destination MAC (default gateway, via ARP) plus an FCS trailer: a \textbf{frame}.
+\item \textbf{L1}: the frame is sent as bits (electrical signals) over the cable.
+\item \textbf{Router}: receives bits (L1), checks FCS and strips the frame (L2), reads the destination IP and routing table, decrements TTL (L3), then re-encapsulates in a new frame for the next link.
+\item \textbf{Server}: goes up the stack. L2 checks the MAC and FCS; L3 checks the IP; L4 reassembles segments, sends ACKs and passes data to port 443; L6 decrypts; L7 the web server reads the GET and replies the same way in reverse.
+\end{enumerate}
+\end{practice}
+
+\begin{practice}{hard}{10}Discuss the advantages and disadvantages of a layered network architecture, and explain why TCP/IP, not OSI, became the model used on the Internet.
+\sol
+\textbf{Advantages}: (1) breaks a complex job into manageable parts; (2) modularity: a layer can change (copper to fibre, IPv4 to IPv6) without changing the others; (3) standard interfaces allow multi-vendor interoperability; (4) easier troubleshooting layer by layer; (5) easier teaching and design.\\
+\textbf{Disadvantages}: (1) header overhead at each layer; (2) duplicated functions (error control at L2 and L4); (3) extra processing delay; (4) strict layering can stop useful cross-layer optimisation.\\
+\textbf{Why TCP/IP won}: TCP/IP protocols were already working and freely available on ARPANET and in Unix (BSD) when OSI arrived (bad timing); OSI was complex, its session and presentation layers were nearly empty while data link and network were overloaded (bad technology); early OSI implementations were slow and buggy (bad implementation); and OSI was seen as a government/telecom product (bad politics). OSI survives as the \textbf{reference model} for teaching and troubleshooting.
+\end{practice}
+
+\begin{practice}{hard}{12}A user reports that she cannot open any website. Using the OSI model, describe a bottom-up troubleshooting procedure, naming a check or tool at each layer.
+\sol
+\begin{enumerate}
+\item \textbf{L1 Physical}: is the cable plugged in, link LED on, Wi-Fi connected? Swap the cable or port.
+\item \textbf{L2 Data Link}: is the NIC enabled and is the switch port up? Check \texttt{arp -a} shows the gateway's MAC; check the VLAN.
+\item \textbf{L3 Network}: \texttt{ipconfig}: valid IP, mask, gateway (a 169.254.x.x address means DHCP failed). \texttt{ping} the gateway, then \texttt{ping 8.8.8.8}; \texttt{tracert} to find where packets stop.
+\item \textbf{L4 Transport}: is a firewall blocking ports 80/443? \texttt{netstat} to see connections; test \texttt{telnet site 443}.
+\item \textbf{L5--L6}: can a TLS session be set up? Check the PC's date/time and certificate errors.
+\item \textbf{L7 Application}: DNS: \texttt{nslookup www.example.com}; browser proxy settings, cache; try another browser.
+\end{enumerate}
+Conclude: if \texttt{ping 8.8.8.8} works but names fail, the fault is \textbf{DNS (L7)}; if the gateway does not answer, the fault is at \textbf{L1--L3}. Document and fix.
+\end{practice}
+
+%=====================================================================
+\newpage
+\begin{cheatsheet}
+\small
+\begin{tabularx}{\linewidth}{@{}XX@{}}
+\textbf{OSI (ISO, 7 layers): layer -- PDU -- job -- device}
+\begin{itemize}
+\item 7 Application -- data -- user access to services (HTTP, FTP, SMTP, DNS) -- gateway
+\item 6 Presentation -- data -- translation, encryption, compression
+\item 5 Session -- data -- dialog control, token, sync checkpoints, RPC
+\item 4 Transport -- segment -- \textbf{process-to-process}, ports, segmentation, end-to-end flow/error control -- firewall
+\item 3 Network -- packet -- \textbf{host-to-host}, IP addressing, routing -- router
+\item 2 Data Link -- frame -- \textbf{hop-to-hop}, MAC, framing, CRC, access control (LLC + MAC) -- switch, bridge, NIC
+\item 1 Physical -- bits -- signals, media, data rate, bit sync, topology, mode -- hub, repeater
+\end{itemize}
+\textbf{Mnemonics}: All People Seem To Need Data Processing (7$\to$1); Please Do Not Throw Sausage Pizza Away (1$\to$7).
+
+\textbf{Purpose of OSI}: standard for multi-vendor interoperability; divides the task into layers; modular; teaching and troubleshooting.
+
+\textbf{Encapsulation}: header added going down; L2 also adds trailer (FCS). Decapsulation going up. Peer layers talk through headers.
+&
+\textbf{TCP/IP (DoD, 4 layers)}: Application (= OSI 5--7) / Transport (TCP, UDP, SCTP) / Internet (IP, ARP, RARP, ICMP, IGMP) / Network Access (= OSI 1--2).
+
+\textbf{OSI vs TCP/IP}: 7 vs 4; ISO vs DoD; reference vs practical; model-first vs protocols-first; session+presentation separate vs merged; network layer both modes vs connectionless only; clear service/interface/protocol vs not.
+\textbf{Similar}: layered, encapsulation, transport end-to-end.
+
+\textbf{IP vs MAC}: IP = L3, logical, 32/128 bit, assigned by admin/DHCP, end-to-end, unchanged. MAC = L2, physical, 48 bit (OUI + serial), burned in NIC, local link, rewritten every hop. ARP: IP $\to$ MAC.
+
+\textbf{4 addresses}: physical (L2), logical (L3), port (L4, 16 bit), specific (URL, email).
+
+\textbf{Internetworking}: routers join different networks; universal IP addressing; common IP packet; encapsulated per link; connectionless best-effort; TCP adds reliability.
+
+\textbf{Session design issues}: dialog control, token management, synchronisation (checkpoints), activity management.
+
+\textbf{Layer design issues}: addressing, error control, flow control, segmentation, multiplexing, routing.
+
+\textbf{Devices}: hub 1, switch/bridge 2, router 3. Router opens only layers 1--3.
+\end{tabularx}
+\end{cheatsheet}
+
+\end{document}

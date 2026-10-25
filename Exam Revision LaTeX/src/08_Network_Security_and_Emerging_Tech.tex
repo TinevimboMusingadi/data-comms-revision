@@ -1,0 +1,567 @@
+\documentclass[10pt]{article}
+\usepackage{dcn}
+\begin{document}
+
+\packtitle{08}{Network Security, Cryptography \& Emerging Tech}
+  {Course outline weeks 8--9 (presentation layer: cryptography, network security) and week 12 (modern trends)}{MEDIUM}
+
+Security appears in every recent paper, but as \hl{short} parts (1--6 marks): define a term, list threats, compare DES/AES, explain a VPN.
+As an Information Security student you should collect these marks quickly and use the extra detail here to write sharper answers.
+
+\subsection*{How often this topic is examined}
+\begin{tabularx}{\linewidth}{@{}Xll@{}}
+\toprule
+\textbf{Question asked} & \textbf{Paper(s)} & \textbf{Marks}\\
+\midrule
+Discuss four network security threats & SE2024 Q2d & 3\\
+Competencies of a hacker & SE2024 Q4e(iii) & 1\\
+Harm caused by Trojans, worms, ransomware, spam & SE2024 Q5a(i)--(iv) & 4 $\times$ 1\\
+Differences between DES and AES & 2023 Q4c & 4\\
+Define Key Distribution Centre (KDC) & 2023 Q4d(i) & 3\\
+Define Certification Authority (CA) & 2023 Q4d(ii) & 3\\
+How a VPN works & ISA2024 Q2a & 3\\
+Firewalls, IDS/IPS, digital signatures, Wi-Fi security, 5G/IoT/cloud & outline only & --\\
+\bottomrule
+\end{tabularx}
+
+\begin{examtip}
+Start every security answer by naming the goal it protects (\textbf{C}onfidentiality, \textbf{I}ntegrity, \textbf{A}vailability).
+For definitions worth 3 marks give: what it is $+$ how it works $+$ an example.
+\end{examtip}
+
+%=====================================================================
+\section{Security goals, threats and attacks}
+
+\subsection{Goals (the CIA triad plus two)}
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}lXl@{}}
+\toprule
+Goal & Meaning & Achieved by\\\midrule
+Confidentiality & Only authorised parties can read the data & Encryption, access control\\
+Integrity & Data is not altered in transit or storage & Hashes, MACs, digital signatures\\
+Availability & Services and data are there when needed & Redundancy, backups, DoS protection\\
+Authentication & Proving who a user or device is & Passwords, MFA, certificates\\
+Non-repudiation & Sender cannot deny having sent a message & Digital signatures\\
+\bottomrule
+\end{tabularx}
+
+\subsection{Threats vs attacks}
+\begin{itemize}
+\item A \textbf{threat} is a possible danger that could exploit a \textbf{vulnerability} (weakness); an \textbf{attack} is a deliberate attempt that carries a threat out. \textbf{Risk} = likelihood $\times$ impact.
+\item \textbf{Passive attack}: the attacker only \emph{observes} (eavesdropping/sniffing, traffic analysis). Hard to detect; prevent with encryption. Attacks confidentiality.
+\item \textbf{Active attack}: the attacker \emph{changes} or \emph{disrupts} data (modification, replay, masquerade/spoofing, DoS). Easier to detect; attacks integrity and availability.
+\end{itemize}
+
+\begin{tabularx}{\linewidth}{@{}>{\bfseries\raggedright\arraybackslash}p{2.7cm}X@{}}
+\toprule
+Attack & How it works\\\midrule
+Sniffing / eavesdropping & Capturing packets on the network (e.g.\ Wireshark in promiscuous mode) to read unencrypted passwords and data. Passive.\\
+Spoofing & Faking a source IP, MAC, e-mail or DNS reply to impersonate a trusted host (ARP spoofing, DNS poisoning).\\
+DoS / DDoS & Flooding a server or link (SYN flood, ping flood) so legitimate users are refused. DDoS uses thousands of infected \textbf{botnet} machines at once.\\
+Man-in-the-middle & Attacker secretly sits between two parties, relaying and possibly altering their traffic.\\
+Phishing / social engineering & Tricking people (fake e-mail, website, call) into giving passwords or installing malware.\\
+Password attacks & Brute force, dictionary attacks, credential stuffing with stolen passwords.\\
+Replay & Recording a valid message (e.g.\ a login) and resending it later. Stopped by nonces and timestamps.\\
+\bottomrule
+\end{tabularx}
+
+\begin{center}
+\begin{tikzpicture}
+  \node[node,fill=peach] (a) at (0,0) {Alice\\{\scriptsize client}};
+  \node[node,fill=peach] (b) at (11,0) {Bob\\{\scriptsize server}};
+  \node[node,fill=hardc,text=white] (m) at (5.5,-2.3) {Mallory\\{\scriptsize attacker}};
+  \draw[midgrey,dashed,thick] (a) -- node[above,note]{what Alice and Bob \emph{think} is happening: a direct, private link} (b);
+  \draw[msg] (a.south) to[bend right=12] node[below left,lbl,pos=0.45]{1. ``my password is X''} (m.west);
+  \draw[msg] (m.east) to[bend right=12] node[below right,lbl,pos=0.55]{2. relays, reads or\\changes the message} (b.south);
+  \draw[msg,dashed] (b.east) |- ++(0.4,0.9) -| node[above,lbl,pos=0.25]{3. replies also pass through Mallory (via ARP spoofing or a rogue Wi-Fi AP)} ([xshift=-4mm]a.west) -- (a.west);
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: man-in-the-middle attack. Defence: encryption with authenticated keys (TLS + certificates, VPN), so Mallory sees only ciphertext and cannot fake the server.}
+\end{center}
+
+\begin{pastq}{SE2024 Q2d}{3}Discuss any four network security threats you are familiar with.\end{pastq}
+\begin{ans}
+\begin{enumerate}
+\item \textbf{Malware}: viruses, worms, Trojans and ransomware that damage systems, steal data or lock files.
+\item \textbf{Denial of Service (DoS/DDoS)}: flooding a server or link with traffic (often from a botnet) so legitimate users cannot reach it; attacks availability.
+\item \textbf{Man-in-the-middle / eavesdropping}: an attacker intercepts traffic (ARP spoofing, rogue Wi-Fi) to read or alter it; attacks confidentiality and integrity.
+\item \textbf{Phishing / social engineering}: fake e-mails or sites trick users into revealing passwords or card details.
+\end{enumerate}
+Others accepted: spoofing, password attacks, SQL injection, insider threats, zero-day exploits.
+\end{ans}
+\sidenote{Only 3 marks for four threats: one crisp line each. Name the threat \textbf{and} the harm it does.}
+
+\begin{pastq}{SE2024 Q4e(iii)}{1}Write brief notes about the competencies expected of the following professionals: A hacker.\end{pastq}
+\begin{ans}
+A (ethical) hacker needs deep knowledge of networking and protocols (TCP/IP, OSI), operating systems (Linux, Windows), programming/scripting (Python, Bash), and security tools for scanning and penetration testing (Nmap, Metasploit, Wireshark) to find and exploit vulnerabilities, plus knowledge of law and ethics (white hat works with permission, e.g.\ CEH certified; black hat attacks illegally).
+\end{ans}
+
+%=====================================================================
+\section{Malware}
+
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}lXl@{}}
+\toprule
+Type & Behaviour & Spreads by\\\midrule
+Virus & Attaches to a host file/program; runs when the file is opened & User action (opening file)\\
+Worm & Stand-alone, \textbf{self-replicating} across the network via vulnerabilities & By itself, no user needed\\
+Trojan horse & Disguised as useful software; opens a backdoor; does \textbf{not} self-copy & User installs it\\
+Ransomware & Encrypts files and demands payment for the key & Phishing, worms (WannaCry)\\
+Spyware / keylogger & Secretly records activity, keystrokes, passwords & Bundled downloads\\
+Rootkit & Hides deep in the OS to keep admin-level access & Trojans, exploits\\
+Botnet (bot) & Infected machines remotely controlled for DDoS or spam & Any of the above\\
+Spam & Unsolicited bulk e-mail (not malware itself, but a carrier) & E-mail\\
+\bottomrule
+\end{tabularx}
+
+\begin{pastq}{SE2024 Q5a(i)--(iv)}{4 $\times$ 1}Explain the harm caused by the following: (i) Trojans (ii) Worms (iii) Ransomware (iv) Spam.\end{pastq}
+\begin{ans}
+\begin{enumerate}[label=(\roman*)]
+\item \textbf{Trojans}: pose as legitimate software, then open a backdoor so the attacker can remotely control the PC, steal passwords and banking details, or install more malware.
+\item \textbf{Worms}: copy themselves across the network without user action, consuming bandwidth and CPU (slowing or crashing networks) and carrying payloads such as ransomware.
+\item \textbf{Ransomware}: encrypts the victim's files or locks the system and demands a ransom for the key, causing data loss, downtime and financial loss.
+\item \textbf{Spam}: unsolicited bulk e-mail that wastes bandwidth, storage and staff time, and carries phishing links and malware attachments.
+\end{enumerate}
+\end{ans}
+\begin{mnemonic}
+\textbf{Virus} needs a host and a user. \textbf{Worm} walks by itself. \textbf{Trojan} tricks you in. \textbf{Ransomware} holds your files hostage.
+\end{mnemonic}
+
+%=====================================================================
+\section{Firewalls, DMZ and IDS/IPS}
+
+A \textbf{firewall} is hardware or software that filters traffic between a trusted and an untrusted network according to a \textbf{rule set} (allow/deny by IP, port, protocol, state).
+
+\begin{tabularx}{\linewidth}{@{}>{\bfseries\raggedright\arraybackslash}p{3.1cm}X@{}}
+\toprule
+Firewall type & How it filters\\\midrule
+Packet filter (stateless) & Checks each packet's header (source/destination IP, port, protocol) against an ACL. Fast but no context. Layers 3--4.\\
+Stateful inspection & Tracks connections in a state table; only replies belonging to an established session are allowed back in.\\
+Application gateway (proxy) & Works at layer 7; understands HTTP, FTP etc.\ and can filter content. Slower.\\
+Next-generation (NGFW) & Stateful + deep packet inspection + built-in IPS + application awareness.\\
+\bottomrule
+\end{tabularx}
+
+\begin{center}
+\begin{tikzpicture}
+  \node[draw=ink,fill=cream,ellipse,minimum width=22mm,minimum height=11mm,font=\small] (net) at (0,0) {Internet};
+  \node[routern] (r) at (2.6,0) {Edge\\router};
+  \node[draw=ink,fill=hardc,text=white,minimum width=15mm,minimum height=8mm,font=\scriptsize\bfseries,align=center] (fw) at (5.2,0) {FIREWALL};
+  \node[switchn] (sl) at (8.4,0) {LAN switch};
+  \node[hostn] (h1) at (7.3,-1.4) {PC};
+  \node[hostn] (h2) at (8.4,-1.4) {PC};
+  \node[hostn] (h3) at (9.5,-1.4) {DB server};
+  \node[draw=ink,fill=easyc!40,minimum width=12mm,minimum height=6mm,font=\scriptsize,align=center] (ids) at (10.9,0) {IDS/IPS\\sensor};
+  \node[switchn] (sd) at (5.2,-1.9) {DMZ switch};
+  \node[hostn] (w) at (4.0,-3.1) {Web};
+  \node[hostn] (ml) at (5.2,-3.1) {Mail};
+  \node[hostn] (dn) at (6.4,-3.1) {DNS};
+  \draw[link] (net) -- (r); \draw[link] (r) -- (fw); \draw[link] (fw) -- (sl); \draw[link] (sl) -- (ids);
+  \foreach \h in {h1,h2,h3} \draw[link] (sl) -- (\h);
+  \draw[link] (fw) -- (sd);
+  \foreach \h in {w,ml,dn} \draw[link] (sd) -- (\h);
+  \begin{scope}[on background layer]
+    \node[draw=brand,dashed,rounded corners,fill=softpeach,fit=(sd)(w)(dn),inner sep=3mm,label={[lbl]left:DMZ\\(public servers)}] {};
+    \node[draw=easyc,dashed,rounded corners,fill=easyc!10,fit=(sl)(h1)(h3)(ids),inner sep=3mm,label={[lbl]above:trusted internal LAN}] {};
+  \end{scope}
+  \node[note] at (1.3,-1.2) {untrusted};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: three-legged firewall. Outsiders may reach only the DMZ servers; the internal LAN accepts only replies to its own connections.}
+\end{center}
+
+\begin{itemize}
+\item \textbf{DMZ} (demilitarised zone): a separate network for servers the public must reach (web, mail, DNS). If one is hacked, the attacker is still outside the internal LAN.
+\item \textbf{IDS} (Intrusion Detection System): monitors a copy of the traffic and \textbf{alerts} the administrator. \textbf{IPS} (Intrusion Prevention System): sits \textbf{inline} and \textbf{blocks} the malicious traffic automatically.
+\item Detection methods: \textbf{signature-based} (matches known attack patterns; misses new attacks) and \textbf{anomaly-based} (learns normal behaviour, flags deviations; catches zero-days but more false positives). NIDS watches the network, HIDS one host.
+\end{itemize}
+\sidenote{IDS = burglar \textbf{alarm} (detect and alert). IPS = security \textbf{guard} (detect and stop). A firewall decides by rules; an IDS/IPS looks inside the traffic for attacks.}
+
+%=====================================================================
+\section{Cryptography: symmetric and asymmetric}
+
+\textbf{Encryption} transforms plaintext into ciphertext using an algorithm (cipher) and a key; \textbf{decryption} reverses it. In the OSI model it is a job of the \textbf{presentation layer}.
+
+\begin{center}
+\begin{tikzpicture}[x=1cm]
+  % symmetric
+  \node[lbl,anchor=west,font=\small\bfseries,text=brand] at (-0.7,1.75) {SYMMETRIC (secret key): DES, 3DES, AES};
+  \node[node] (p1) at (0,0) {Plaintext};
+  \node[node,fill=peach] (e1) at (2.9,0) {Encrypt};
+  \node[node,fill=white] (c1) at (5.8,0) {Ciphertext};
+  \node[node,fill=peach] (d1) at (8.7,0) {Decrypt};
+  \node[node] (q1) at (11.4,0) {Plaintext};
+  \draw[->,thick] (p1)--(e1); \draw[->,thick] (e1)--(c1); \draw[->,thick] (c1)--(d1); \draw[->,thick] (d1)--(q1);
+  \node[draw=ink,fill=easyc,font=\scriptsize,rounded corners] (k1) at (2.9,0.95) {key K};
+  \node[draw=ink,fill=easyc,font=\scriptsize,rounded corners] (k2) at (8.7,0.95) {same key K};
+  \draw[->] (k1)--(e1); \draw[->] (k2)--(d1);
+  \draw[dashed,midgrey] (k1) -- node[above,note]{K must be shared secretly beforehand} (k2);
+  % asymmetric
+  \node[lbl,anchor=west,font=\small\bfseries,text=brand] at (-0.7,-1.35) {ASYMMETRIC (public key): RSA, ECC, Diffie--Hellman};
+  \node[node] (p2) at (0,-2.7) {Plaintext};
+  \node[node,fill=peach] (e2) at (2.9,-2.7) {Encrypt};
+  \node[node,fill=white] (c2) at (5.8,-2.7) {Ciphertext};
+  \node[node,fill=peach] (d2) at (8.7,-2.7) {Decrypt};
+  \node[node] (q2) at (11.4,-2.7) {Plaintext};
+  \draw[->,thick] (p2)--(e2); \draw[->,thick] (e2)--(c2); \draw[->,thick] (c2)--(d2); \draw[->,thick] (d2)--(q2);
+  \node[draw=ink,fill=easyc,font=\scriptsize,rounded corners] (k3) at (2.9,-1.75) {Bob's \textbf{public} key};
+  \node[draw=ink,fill=hardc,text=white,font=\scriptsize,rounded corners] (k4) at (8.7,-1.75) {Bob's \textbf{private} key};
+  \draw[->] (k3)--(e2); \draw[->] (k4)--(d2);
+  \node[note] at (5.8,-3.5) {public key is published to everyone; only Bob holds the private key};
+  \node[lbl] at (0,-3.5) {Alice}; \node[lbl] at (11.4,-3.5) {Bob};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: symmetric encryption uses one shared key; asymmetric uses a key pair.}
+\end{center}
+\sidenote{Real systems (TLS, VPNs) are \textbf{hybrid}: asymmetric crypto swaps a random session key, then fast symmetric AES encrypts the data.}
+
+\begin{tabularx}{\linewidth}{@{}>{\bfseries\raggedright\arraybackslash}p{2.4cm}XX@{}}
+\toprule
+Point & Symmetric & Asymmetric\\\midrule
+Keys & One shared secret key & Key pair: public + private\\
+Speed & Very fast; used for bulk data & 100--1000$\times$ slower; used for small data (keys, signatures)\\
+Key distribution & The big problem: needs a secure channel or a KDC & Easy: public key can be sent openly (trust via CA)\\
+Keys for $n$ users & $n(n-1)/2$ & $2n$ (one pair each)\\
+Services & Confidentiality & Confidentiality, authentication, non-repudiation\\
+Examples & DES, 3DES, AES, RC4 & RSA, ECC, Diffie--Hellman, DSA\\
+\bottomrule
+\end{tabularx}
+
+\subsection{DES vs AES}
+\begin{pastq}{2023 Q4c}{4}Highlight the major differences between DES and AES encryption methods.\end{pastq}
+\begin{ans}
+\small
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}lXX@{}}
+\toprule
+Feature & DES & AES\\\midrule
+Origin & IBM, adopted by NIST 1977 & Rijndael, adopted by NIST 2001 to replace DES\\
+Key length & \textbf{56 bits} (64 with parity) & \textbf{128, 192 or 256 bits}\\
+Block size & 64 bits & 128 bits\\
+Structure & Feistel network & Substitution--permutation network (SubBytes, ShiftRows, MixColumns, AddRoundKey)\\
+Rounds & 16 & 10 / 12 / 14 (by key size)\\
+Security & Broken by brute force (1998--99, under a day); 3DES was a stop-gap & No practical attack; used in WPA2/3, HTTPS, VPNs\\
+Speed & Slow in software & Fast in hardware and software\\
+\bottomrule
+\end{tabularx}
+\end{ans}
+
+\begin{working}[Why 56 bits is too short: brute force at $10^{12}$ keys per second]
+\begin{align*}
+\text{DES: } 2^{56} &\approx 7.2\times10^{16} \text{ keys} && \cmt{try every key}\\
+7.2\times10^{16} / 10^{12} &= 7.2\times10^{4}\ \text{s} \approx \mathbf{20\ hours} && \cmt{$\div 3600$}\\
+\text{AES-128: } 2^{128} &\approx 3.4\times10^{38} \text{ keys}\\
+3.4\times10^{38} / 10^{12} &= 3.4\times10^{26}\ \text{s} \approx \mathbf{1.1\times10^{19}\ years} && \cmt{$\div 3.15\times10^{7}$ s/year}
+\end{align*}
+\end{working}
+\begin{trap}
+Each extra key bit \textbf{doubles} the work, so AES-128 is not ``72 bits better'' but $2^{72}$ \textbf{times} harder than DES. Also: DES key is 56 bits, not 64 (8 are parity).
+\end{trap}
+
+\subsection{Hashing and digital signatures}
+\begin{itemize}
+\item A \textbf{hash function} (SHA-256; MD5 and SHA-1 are now weak) turns any message into a short fixed-length \textbf{digest}. One-way; any change to the message changes the digest. Gives \textbf{integrity}.
+\item A \textbf{digital signature} = the hash of the message encrypted with the \textbf{sender's private key}. Anyone verifies it with the sender's \textbf{public key}. Gives integrity, authentication and \textbf{non-repudiation}.
+\end{itemize}
+
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \node[lbl,font=\scriptsize\bfseries,text=brand] at (2.6,1.0) {SENDER (Alice) signs};
+  \node[node] (m) at (0,0) {Message};
+  \node[node,fill=peach] (h) at (2.5,0) {Hash\\{\scriptsize SHA-256}};
+  \node[node,fill=white] (dg) at (5,0) {Digest};
+  \node[node,fill=hardc,text=white] (en) at (5,-1.4) {Encrypt with\\{\scriptsize Alice's private key}};
+  \node[node,fill=easyc] (sg) at (2.5,-1.4) {Signature};
+  \draw[->,thick] (m)--(h); \draw[->,thick] (h)--(dg); \draw[->,thick] (dg)--(en); \draw[->,thick] (en)--(sg);
+  \draw[->,thick,brand] (m.south) |- ++(0,-2.2) -- ++(7,0) node[below,lbl,pos=0.6]{message + signature sent to Bob};
+  \draw[->,thick,brand] (sg.south) -- ++(0,-0.8);
+  \node[lbl,font=\scriptsize\bfseries,text=brand] at (10.3,1.0) {RECEIVER (Bob) verifies};
+  \node[node,fill=peach] (h2) at (8.6,0) {Hash message};
+  \node[node,fill=easyc!60,font=\scriptsize] (dc) at (11.6,0) {Decrypt signature\\with Alice's public key};
+  \node[node,fill=white] (d1) at (8.6,-1.4) {Digest 1};
+  \node[node,fill=white] (d2) at (11.6,-1.4) {Digest 2};
+  \node[draw=ink,fill=cream,diamond,aspect=2,font=\scriptsize,inner sep=1pt] (cmp) at (10.1,-2.6) {equal?};
+  \draw[->,thick] (h2)--(d1); \draw[->,thick] (dc)--(d2);
+  \draw[->,thick] (d1) |- (cmp); \draw[->,thick] (d2) |- (cmp);
+  \draw[dashed,midgrey] (7,1.2) -- (7,-3.2);
+  \node[note,anchor=north] at (10.1,-3.0) {yes: genuine and unaltered};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: creating and verifying a digital signature.}
+\end{center}
+
+%=====================================================================
+\section{Key distribution: KDC and Kerberos}
+
+\textbf{Problem}: with symmetric keys, $n$ users need $n(n-1)/2$ secret keys and a safe way to deliver each one.
+\textbf{Solution}: a trusted \textbf{Key Distribution Centre} that shares one long-term key with each user ($n$ keys) and issues short-lived \textbf{session keys} on demand.
+
+\begin{center}
+\begin{tikzpicture}[yscale=0.62]
+  \node[node,fill=peach] (a) at (0,0) {Alice};
+  \node[node,fill=brand,text=white] (k) at (5.6,0) {KDC\\{\scriptsize knows $K_A$, $K_B$}};
+  \node[node,fill=peach] (b) at (11.2,0) {Bob};
+  \foreach \x in {0,5.6,11.2}\draw[midgrey,dashed] (\x,-0.9) -- (\x,-8.3);
+  \draw[msg] (0,-1.6) -- node[above,lbl]{1. ``I want to talk to Bob'' + nonce $N_1$} (5.6,-1.6);
+  \draw[msg] (5.6,-2.9) -- node[above,lbl]{2. $E_{K_A}\big(K_S,\ \text{Bob},\ N_1,\ \text{ticket}\big)$} (0,-2.9);
+  \node[note,anchor=west] at (5.75,-2.9) {ticket $= E_{K_B}(K_S,\ \text{Alice})$};
+  \node[lbl,anchor=west,fill=cream,draw=midgrey] at (0.15,-4.1) {Alice decrypts with $K_A$, learns session key $K_S$};
+  \draw[msg] (0,-5.3) -- node[above,lbl,pos=0.5,fill=white,inner sep=1pt]{3. forwards the ticket $E_{K_B}(K_S,\ \text{Alice})$; only Bob can open it} (11.2,-5.3);
+  \draw[msg] (11.2,-6.4) -- node[above,lbl,pos=0.5,fill=white,inner sep=1pt]{4. $E_{K_S}(N_2)$ \quad challenge} (0,-6.4);
+  \draw[msg] (0,-7.5) -- node[above,lbl,pos=0.5,fill=white,inner sep=1pt]{5. $E_{K_S}(N_2 - 1)$ \quad proves Alice has $K_S$ (stops replay)} (11.2,-7.5);
+  \node[note] at (5.6,-8.7) {now both share $K_S$ and encrypt the conversation with AES; $K_S$ is discarded after the session};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: KDC session-key distribution (Needham--Schroeder style, the basis of Kerberos).}
+\end{center}
+
+\textbf{Kerberos} splits the KDC into an \textbf{Authentication Server (AS)}, which logs the user in and gives a \textbf{Ticket-Granting Ticket (TGT)}, and a \textbf{Ticket-Granting Server (TGS)}, which exchanges the TGT for a service ticket. Tickets carry timestamps and expire (single sign-on in Windows Active Directory).
+
+\begin{pastq}{2023 Q4d(i)}{3}Define the following terms as applied in network security: Key distribution center.\end{pastq}
+\begin{ans}
+A \textbf{Key Distribution Centre} is a trusted third party in a symmetric-key system that shares a secret master key with every user and, on request, generates a temporary \textbf{session key} for two users and delivers it securely (encrypted under each user's master key, as a ``ticket''). Each user then needs only one key with the KDC instead of one per partner ($n$ keys instead of $n(n-1)/2$). Example: \textbf{Kerberos} (AS + TGS).
+\end{ans}
+\sidenote{KDC = \textbf{symmetric} keys (session keys). CA = \textbf{public} keys (certificates). Mixing them up loses all 3 marks.}
+
+%=====================================================================
+\section{Certificate authorities and PKI}
+
+\textbf{Problem}: when Bob downloads ``Alice's public key'', how does he know it is not Mallory's? \textbf{Solution}: a \textbf{digital certificate} (X.509) that binds a public key to an identity, signed by a trusted \textbf{Certification Authority}. The whole system (CAs, registration authorities, certificates, CRLs, policies) is the \textbf{Public Key Infrastructure (PKI)}.
+
+\begin{center}
+\begin{tikzpicture}
+  \node[node,fill=brand,text=white,minimum width=30mm] (ca) at (5.6,2.6) {Certification Authority\\{\scriptsize e.g.\ DigiCert, Let's Encrypt}};
+  \node[node,fill=peach,minimum width=26mm] (s) at (0.9,0) {Web server\\{\scriptsize www.bank.co.zw}};
+  \node[node,fill=peach,minimum width=26mm] (c) at (10.3,0) {Browser\\{\scriptsize root store holds CA public key}};
+  \draw[msg] ([xshift=-7mm]s.north) to[bend left=25] node[above left,lbl,pos=0.55]{1. CSR: identity +\\server's public key} (ca.west);
+  \draw[msg] ([xshift=-8mm]ca.south) to[bend left=12] node[below right,lbl,pos=0.45]{2. CA verifies identity, signs\\certificate with \textbf{CA private key}} ([xshift=7mm]s.north);
+  \draw[msg] (s.east) -- node[above,lbl]{3. ``Hello'' $\to$ server sends its certificate} (c.west);
+  \draw[midgrey,dashed,->] (ca.east) -| node[pos=0.3,above,note]{CA public key pre-installed} (c.north);
+  \node[draw=midgrey,fill=cream,font=\scriptsize,align=left,anchor=north] at (10.3,-0.75) {4. Browser checks:\\\quad signature valid with CA public key\\\quad name matches the site\\\quad not expired / not revoked (CRL, OCSP)};
+  \node[draw=ink,fill=white,font=\scriptsize,align=left,anchor=north] at (2.8,-0.75) {\textbf{X.509 certificate}\\subject: www.bank.co.zw\\subject public key\\issuer: the CA, validity dates\\serial no.\ + \textbf{CA's signature}};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: a CA issuing a certificate (1--2) and a client verifying it in a TLS handshake (3--4).}
+\end{center}
+
+\begin{pastq}{2023 Q4d(ii)}{3}Define the following terms as applied in network security: Certification authority.\end{pastq}
+\begin{ans}
+A \textbf{Certification Authority} is a trusted organisation in a Public Key Infrastructure that \textbf{verifies the identity} of a person, server or organisation and issues a \textbf{digital certificate} (X.509) binding that identity to its public key, \textbf{signed with the CA's private key}. Anyone can check the certificate with the CA's public key, which defeats man-in-the-middle key substitution. The CA also \textbf{revokes} compromised certificates (CRL / OCSP). Examples: DigiCert, GlobalSign, Let's Encrypt; used in HTTPS/TLS.
+\end{ans}
+
+%=====================================================================
+\section{VPN, IPsec and SSL/TLS}
+
+A \textbf{Virtual Private Network} creates a secure, encrypted \textbf{tunnel} across a public network (the Internet) so that a remote user or branch office behaves as if it were directly on the private LAN.
+
+\begin{center}
+\begin{tikzpicture}
+  % site A
+  \node[hostn] (a1) at (0,0.7) {PC};
+  \node[hostn] (a2) at (0,-0.7) {PC};
+  \node[switchn,minimum width=10mm] (sa) at (1.4,0) {SW};
+  \node[routern,fill=brand,text=white] (ga) at (3.0,0) {VPN\\GW A};
+  % site B
+  \node[routern,fill=brand,text=white] (gb) at (9.3,0) {VPN\\GW B};
+  \node[switchn,minimum width=10mm] (sb) at (10.9,0) {SW};
+  \node[hostn] (b1) at (12.3,0.7) {Server};
+  \node[hostn] (b2) at (12.3,-0.7) {PC};
+  \draw[link] (a1)--(sa); \draw[link] (a2)--(sa); \draw[link] (sa)--(ga);
+  \draw[link] (b1)--(sb); \draw[link] (b2)--(sb); \draw[link] (sb)--(gb);
+  % internet
+  \node[draw=midgrey,fill=cream!60,ellipse,minimum width=48mm,minimum height=22mm] (net) at (6.15,0) {};
+  \node[note] at (6.15,0.6) {public Internet (untrusted)};
+  \draw[fill=softpeach,draw=brand,thick,rounded corners=3mm] (ga.east|-0,0.28) rectangle (gb.west|-0,-0.28);
+  \node[font=\scriptsize\bfseries,text=brand] at (6.15,0) {encrypted IPsec tunnel};
+  \node[lbl] at (0.7,-1.4) {Site A (HQ) LAN\\10.1.0.0/16};
+  \node[lbl] at (11.6,-1.4) {Site B (branch) LAN\\10.2.0.0/16};
+\end{tikzpicture}
+
+\vspace{2mm}
+\begin{tikzpicture}[x=1mm]
+  \node[hdr,fill=brand!60,minimum width=22mm] (n1) at (0,0) {New IP header\\GW A $\to$ GW B};
+  \node[hdr,fill=peach,minimum width=14mm,right=0pt of n1] (n2) {ESP\\header};
+  \node[hdr,fill=easyc!50,minimum width=24mm,right=0pt of n2] (n3) {Original IP hdr\\10.1.0.5 $\to$ 10.2.0.9};
+  \node[hdr,fill=easyc!50,minimum width=24mm,right=0pt of n3] (n4) {TCP + data};
+  \node[hdr,fill=peach,minimum width=14mm,right=0pt of n4] (n5) {ESP\\trailer};
+  \node[hdr,fill=peach,minimum width=14mm,right=0pt of n5] (n6) {ESP\\auth};
+  \draw[decorate,decoration={brace,mirror,amplitude=4pt}] (n3.south west) -- (n4.south east) node[midway,below=4pt,lbl]{encrypted (AES)};
+  \draw[decorate,decoration={brace,amplitude=4pt}] (n2.north west) -- (n5.north east) node[midway,above=4pt,lbl]{authenticated (integrity check)};
+\end{tikzpicture}\\
+{\scriptsize\color{midgrey}Figure: site-to-site VPN and an IPsec ESP tunnel-mode packet. The Internet sees only GW A $\to$ GW B.}
+\end{center}
+
+\begin{pastq}{ISA2024 Q2a}{3}VPN can be essential in network security, briefly explain how VPN works.\end{pastq}
+\begin{ans}
+\begin{enumerate}
+\item \textbf{Authenticate and agree keys}: the VPN client (or branch gateway) and the VPN server authenticate each other (certificates, pre-shared key, username + MFA) and agree session keys (IKE in IPsec, the TLS handshake in SSL VPNs).
+\item \textbf{Encrypt and encapsulate (tunnel)}: each original packet is encrypted (AES) and wrapped inside a new packet addressed to the VPN gateway, so it crosses the public Internet as unreadable ciphertext.
+\item \textbf{Decapsulate and forward}: the gateway checks integrity, decrypts and forwards the original packet into the private LAN, as if the user were on site.
+\end{enumerate}
+Gives confidentiality, integrity and authentication over a cheap public network. Types: remote-access and site-to-site; protocols IPsec, SSL/TLS, OpenVPN, WireGuard, L2TP/IPsec.
+\end{ans}
+\sidenote{``How it works'' for 3 marks = 3 steps: authenticate, encrypt + encapsulate, decrypt at the gateway. Draw the tunnel if time allows.}
+
+\begin{tabularx}{\linewidth}{@{}>{\bfseries\raggedright\arraybackslash}p{2.4cm}XX@{}}
+\toprule
+ & IPsec & SSL/TLS\\\midrule
+Layer & Network (layer 3) & Between transport and application (layers 4--7)\\
+Protects & All IP traffic between two hosts or gateways & One application session (HTTPS, SMTPS, SSL VPN)\\
+Parts & AH (authentication/integrity only), ESP (encryption + integrity), IKE (keys); transport or tunnel mode & Handshake (certificate, key exchange), record protocol (AES + MAC)\\
+Typical use & Site-to-site VPNs, built into IPv6 & Web browsing (port 443), remote-access VPN through a browser\\
+\bottomrule
+\end{tabularx}
+
+%=====================================================================
+\section{Wireless security}
+
+Radio signals pass through walls, so anyone nearby can sniff Wi-Fi. Wireless needs both \textbf{authentication} (who may join) and \textbf{encryption} (protect frames in the air).
+
+\begin{tabularx}{\linewidth}{@{}>{\bfseries}lllX@{}}
+\toprule
+Standard & Year & Encryption & Notes\\\midrule
+WEP & 1999 & RC4, 40/104-bit key, 24-bit IV & Broken: IV reuse lets the key be cracked in minutes. Never use.\\
+WPA & 2003 & RC4 + TKIP & Stop-gap that ran on old WEP hardware; now deprecated.\\
+WPA2 & 2004 & \textbf{AES-CCMP} & Personal (PSK) or Enterprise (802.1X + RADIUS). 4-way handshake can be attacked offline if the passphrase is weak (KRACK flaw patched).\\
+WPA3 & 2018 & AES (GCMP-256 in Enterprise) & \textbf{SAE} replaces PSK (resists offline dictionary attacks), forward secrecy, protected management frames, OWE for open hotspots.\\
+\bottomrule
+\end{tabularx}
+\begin{mnemonic}
+Weak $\to$ Strong: \textbf{WEP $<$ WPA $<$ WPA2 $<$ WPA3}. RC4 = old and broken; AES = modern. Other good practice: change default admin passwords, disable WPS, use strong passphrases, guest VLAN, MAC filtering only as a weak extra.
+\end{mnemonic}
+
+\sidenote{WPA2/3 \textbf{Personal} = one shared passphrase for everyone. \textbf{Enterprise} = each user logs in via 802.1X + RADIUS, so one leaver does not force a new password for all.}
+
+%=====================================================================
+\newpage
+\section{Emerging technologies (week 12: modern trends)}
+
+\begin{tabularx}{\linewidth}{@{}>{\bfseries\raggedright\arraybackslash}p{2.4cm}X@{}}
+\toprule
+Technology & What it is and why it matters\\\midrule
+5G & Fifth-generation mobile network: up to $\sim$10 Gbps (eMBB), $\sim$1 ms latency (URLLC), up to a million devices per km$^2$ (mMTC). Uses network slicing (virtual networks per service) built on SDN/NFV. Enables IoT, smart cities, remote surgery.\\
+Internet of Things & Billions of sensors and devices (smart meters, farm sensors, cameras) on the Internet. Needs IPv6 and low-power protocols (Zigbee, LoRaWAN, MQTT). Security risk: default passwords, no patches; Mirai botnet used IoT cameras for DDoS.\\
+Cloud computing & On-demand, pay-as-you-go computing over the Internet. \textbf{IaaS} (virtual machines, e.g.\ AWS EC2), \textbf{PaaS} (platform to deploy apps, e.g.\ Google App Engine), \textbf{SaaS} (finished software, e.g.\ Gmail, Microsoft 365). Deployment: public, private, hybrid, community.\\
+SDN & Software-Defined Networking separates the \textbf{control plane} (central SDN controller) from the \textbf{data plane} (switches) and programs them via OpenFlow. Central view, automation, fast changes.\\
+NFV & Network Function Virtualisation runs firewalls, routers and load balancers as software (VMs) on standard servers instead of dedicated boxes. Cheaper, scalable.\\
+Edge / fog computing & Processing data near where it is produced (base station, gateway) instead of a distant cloud: lower latency, less bandwidth. Needed for self-driving cars, AR, industrial IoT.\\
+Others & Wi-Fi 6/7 (OFDMA), LEO satellite Internet (Starlink), AI-driven network management, Zero Trust security (``never trust, always verify''), blockchain.\\
+\bottomrule
+\end{tabularx}
+\sidenote{Cloud \textbf{shared responsibility}: the provider secures the infrastructure; the customer still secures data, accounts and configuration. Most cloud breaches are misconfigurations.}
+
+%=====================================================================
+\section{Practice questions}
+\setcounter{pq}{0}
+
+\begin{practice}{easy}{3}State and explain the three goals of the CIA triad.
+\sol \textbf{Confidentiality}: only authorised users can read data (encryption). \textbf{Integrity}: data is not altered without detection (hashing, signatures). \textbf{Availability}: systems and data are accessible when needed (redundancy, DoS protection).
+\end{practice}
+
+\begin{practice}{easy}{4}Distinguish between a passive and an active attack, giving one example of each.
+\sol A \textbf{passive} attack only monitors or copies traffic without changing it, so it is hard to detect; it threatens confidentiality. Example: sniffing passwords with Wireshark, traffic analysis.
+An \textbf{active} attack modifies, injects or blocks traffic, so it can be detected; it threatens integrity and availability. Example: DoS flood, spoofing, MITM modification, replay.
+\end{practice}
+
+\begin{practice}{easy}{3}Why is WEP no longer considered secure, and what should replace it?
+\sol WEP uses the RC4 cipher with a short 24-bit IV that repeats on a busy network, so captured frames let an attacker recover the key in minutes; its integrity check (CRC-32) can also be forged. Replace it with \textbf{WPA2-AES (CCMP)} or, better, \textbf{WPA3} with SAE.
+\end{practice}
+
+\begin{practice}{medium}{6}Compare symmetric and asymmetric encryption under: keys, speed, key distribution and services provided. Give an example algorithm of each.
+\sol
+\begin{tabularx}{\linewidth}{@{}lXX@{}}
+\toprule
+ & \textbf{Symmetric} & \textbf{Asymmetric}\\\midrule
+Keys & One shared secret key & Public/private key pair\\
+Speed & Fast, for bulk data & Slow, for keys/signatures\\
+Distribution & Hard: secret channel or KDC; $n(n-1)/2$ keys & Easy: public key published; $2n$ keys\\
+Services & Confidentiality only & Confidentiality, authentication, non-repudiation\\
+Example & AES, 3DES & RSA, ECC\\
+\bottomrule
+\end{tabularx}
+\end{practice}
+
+\begin{practice}{medium}{4}Differentiate between an IDS and an IPS.
+\sol An \textbf{IDS} monitors a copy of traffic (out of band), \textbf{detects} suspicious activity and \textbf{alerts} an administrator; it does not stop the attack. An \textbf{IPS} sits \textbf{inline} in the traffic path and \textbf{blocks} malicious packets automatically (drop, reset, block source). Both use signature- or anomaly-based detection; an IPS false positive can block legitimate traffic, an IDS false positive only causes an alert.
+\end{practice}
+
+\begin{practice}{medium}{6}Explain how a digital signature provides integrity, authentication and non-repudiation.
+\sol The sender hashes the message and encrypts the digest with their \textbf{private key}; the receiver decrypts it with the sender's \textbf{public key} and compares it with a fresh hash of the message.
+\textbf{Integrity}: if one bit of the message changed, the two digests would differ. \textbf{Authentication}: only the holder of the private key could produce a signature that the matching public key opens. \textbf{Non-repudiation}: since only the sender has the private key, they cannot later deny signing (the public key is bound to them by a CA certificate).
+\end{practice}
+
+\begin{practice}{medium}{6}Describe the three cloud service models, giving an example of each and stating who manages what.
+\sol \textbf{IaaS}: the provider supplies virtual servers, storage and networks; the customer manages the OS, middleware and apps (AWS EC2, Azure VMs). \textbf{PaaS}: the provider also manages the OS and runtime; the customer only deploys code and data (Google App Engine, Heroku). \textbf{SaaS}: the provider runs the complete application; the customer just uses it through a browser (Gmail, Microsoft 365, Zoom).
+\end{practice}
+
+\begin{practice}{hard}{10}An organisation has 100 employees who must all be able to exchange encrypted messages in pairs. (a) How many secret keys are needed with plain symmetric encryption? (b) How many with a KDC? (c) How many keys with public-key encryption? (d) With the aid of a diagram, explain how a KDC gives two users a session key.
+\sol
+\begin{working}
+\begin{align*}
+\text{(a) } \frac{n(n-1)}{2} &= \frac{100\times 99}{2} = \mathbf{4950} \text{ keys} && \cmt{one per pair}\\
+\text{(b) KDC} &= n = \mathbf{100} \text{ long-term keys} && \cmt{each user shares one with the KDC}\\
+\text{(c) public key} &= 2n = \mathbf{200} \text{ keys (100 pairs)} && \cmt{public keys are not secret}
+\end{align*}
+\end{working}
+(d) Draw the KDC sequence diagram from Section 5. Alice asks the KDC for a key with Bob (with nonce $N_1$); the KDC returns $E_{K_A}(K_S, \text{Bob}, N_1, \text{ticket})$ where ticket $= E_{K_B}(K_S, \text{Alice})$; Alice forwards the ticket to Bob, who decrypts it with $K_B$; Bob challenges with $E_{K_S}(N_2)$ and Alice answers $E_{K_S}(N_2-1)$, proving both hold $K_S$ and preventing replay. The session key is temporary and discarded after use. Kerberos implements this with an AS and TGS and time-limited tickets.
+\end{practice}
+
+\begin{practice}{hard}{10}With the aid of a diagram, explain a man-in-the-middle attack on an online banking login and show how HTTPS with certificates defeats it.
+\sol Draw Alice, Mallory and the bank as in Section 1. \textbf{Attack}: Mallory positions himself between the victim and the bank (ARP spoofing on the LAN, DNS spoofing or a rogue Wi-Fi hotspot). The victim's packets go to Mallory, who reads the username and password and relays them to the bank, so neither side notices; he can also change transfer details (active attack on integrity) or capture session cookies.
+\textbf{Defence with HTTPS/TLS}: (1) the bank sends its X.509 certificate signed by a CA; (2) the browser verifies the CA signature with the CA public key in its root store and checks the domain name and expiry; (3) Mallory cannot produce a valid certificate for the bank's name because he lacks the CA's private key, so the browser shows a warning; (4) the client and the genuine server agree a session key, and all data is AES-encrypted and integrity-protected, so Mallory sees only ciphertext. Extra: HSTS forces HTTPS; MFA limits stolen-password damage; users must not click through certificate warnings.
+\end{practice}
+
+\begin{practice}{hard}{12}A company has a head office in Harare and a branch in Bulawayo. It runs a public web and mail server and an internal database. With the aid of a labelled diagram, design and justify a secure network architecture.
+\sol \textbf{Diagram}: Internet $\to$ edge router $\to$ stateful/next-generation firewall with three legs: (i) DMZ with web and mail servers, (ii) internal LAN with switches, VLANs and the database server, (iii) outside. An IPS inline behind the firewall. A site-to-site IPsec VPN from the head-office gateway to the branch gateway across the Internet (as in Sections 3 and 7).
+\textbf{Justification}:
+\begin{enumerate}
+\item \textbf{Firewall rules}: allow inbound only HTTPS (443) and SMTP (25) to the DMZ; deny all inbound to the LAN except replies (stateful).
+\item \textbf{DMZ}: a compromised web server does not give direct access to the database.
+\item \textbf{IPS/IDS}: detects and blocks known attack signatures and anomalies; logs to the administrator.
+\item \textbf{VPN}: IPsec ESP tunnel mode with AES encrypts branch traffic over the cheap public Internet; gateways authenticate with certificates.
+\item \textbf{Segmentation}: VLANs separate finance, staff and guest Wi-Fi; ACLs between them.
+\item \textbf{Wireless}: WPA3-Enterprise with 802.1X/RADIUS.
+\item \textbf{Hosts and people}: antivirus, patching, backups, MFA, security awareness training.
+\end{enumerate}
+\end{practice}
+
+\begin{practice}{hard}{10}Discuss 5G and the Internet of Things as emerging technologies, explaining how they relate and the security challenges they create.
+\sol \textbf{5G}: enhanced mobile broadband (up to $\sim$10 Gbps), ultra-reliable low latency ($\sim$1 ms) and massive machine-type communication (about $10^6$ devices/km$^2$); uses network slicing on SDN/NFV and edge computing.
+\textbf{IoT}: everyday objects with sensors and network connections (smart meters, irrigation sensors, health monitors) sending data to cloud platforms; relies on IPv6 and low-power protocols (Zigbee, LoRaWAN, MQTT).
+\textbf{Relation}: 5G's mMTC and low latency are what allow very large IoT deployments and real-time uses (self-driving cars, remote surgery); edge computing processes IoT data near the source.
+\textbf{Security challenges}: huge attack surface; cheap devices with default passwords and no updates (Mirai botnet DDoS); weak encryption on low-power devices; privacy of collected personal data; software-based 5G core (SDN/NFV) can be attacked like any software; slicing isolation must be enforced.
+\textbf{Mitigations}: unique credentials, secure boot and firmware updates, encryption (TLS/DTLS), network segmentation of IoT devices, IDS monitoring, Zero Trust.
+\end{practice}
+
+%=====================================================================
+\newpage
+\begin{cheatsheet}
+\small
+\begin{tabularx}{\linewidth}{@{}XX@{}}
+\textbf{Goals}: CIA = Confidentiality (encryption), Integrity (hash, signature), Availability (anti-DoS) + Authentication, Non-repudiation.
+
+\textbf{Attacks}: passive (sniffing, traffic analysis) vs active (spoofing, DoS/DDoS, MITM, replay). Phishing = social engineering.
+
+\textbf{Malware}
+\begin{itemize}
+\item Virus: host file + user
+\item Worm: self-replicates over network
+\item Trojan: disguised, backdoor, no self-copy
+\item Ransomware: encrypts files, demands ransom
+\item Spam: bulk e-mail, carries phishing
+\end{itemize}
+\textbf{Firewall}: packet filter, stateful, proxy, NGFW. \textbf{DMZ} = public servers zone.
+\textbf{IDS} detects + alerts; \textbf{IPS} inline, blocks. Signature vs anomaly.
+
+\textbf{Wi-Fi}: WEP (RC4, broken) $<$ WPA (TKIP) $<$ WPA2 (AES-CCMP) $<$ WPA3 (SAE).
+&
+\textbf{Symmetric}: one key, fast, AES/DES, $n(n-1)/2$ keys.\newline
+\textbf{Asymmetric}: public + private, slow, RSA/ECC, $2n$ keys.
+
+\textbf{DES}: 56-bit key, 64-bit block, 16 Feistel rounds, broken.\newline
+\textbf{AES}: 128/192/256 key, 128-bit block, 10/12/14 rounds, SPN, secure.
+
+\textbf{Signature}: hash, encrypt with sender \textbf{private} key; verify with sender \textbf{public} key.
+
+\textbf{KDC}: trusted 3rd party, shares $K_A$, $K_B$; issues session key $K_S$ + ticket $E_{K_B}(K_S)$. Kerberos = AS + TGS, tickets expire.
+
+\textbf{CA}: verifies identity, signs X.509 certificate (identity + public key) with CA private key; revokes (CRL/OCSP). PKI.
+
+\textbf{VPN}: authenticate, encrypt + encapsulate in new IP packet, gateway decrypts. IPsec (L3: AH, ESP, IKE; tunnel/transport), SSL/TLS (port 443). Remote-access or site-to-site.
+
+\textbf{Emerging}: 5G (10 Gbps, 1 ms, slicing), IoT, cloud IaaS/PaaS/SaaS, SDN (control vs data plane), NFV, edge.
+\end{tabularx}
+\end{cheatsheet}
+
+\end{document}
